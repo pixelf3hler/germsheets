@@ -1,0 +1,54 @@
+germSheets
+
+a Sass-like css extension written in Javascript. Just add a germsheets style node in the head of your html, give it a text/x-gss MIME-type and germSheets will try to compile it.
+
+example:
+
+<style type="text/x-gss">
+<!--
+
+// no one-line comments in css? i don't think so..
+
+/* of course css-style comments are also ok.. */
+
+$green = #7eff48; // store stuff in variables
+// use mixins...
+~dropShadow($yOffset) {
+   -moz-box-shadow:    3px $yOffset 5px 6px #ccc;
+   -webkit-box-shadow: 3px $yOffset 5px 6px #ccc;
+   box-shadow:         3px $yOffset 5px 6px #ccc;
+}
+
+.drop-shadow {
+   ~dropShadow(8px); // i think you get the point..
+}
+
+.random_color {
+   /* there are also some built-in functions */
+   color: <-randomColor();
+   background-color: <-brighten($green, 25);
+}
+
+ul {
+   list-style-type: none;
+   // define nested rules the easy way:
+   li {
+      padding: 2em;
+      // for multi-level nesting, just escape the closing curly braces with !'s
+      span {
+         color: $green;
+      }!!
+   }!
+   // one-level nesting is also possible using the parsers 'inline-thru' mode:
+   `li:first-child { font-size: 1.5em; }`
+}
+
+/* you can also exclude css from beeing processed by germSheets.
+   Just wrap it in %%'s
+*/
+%%
+*, *:before, *:after { box-sizing: border-box; }
+%%
+
+-->
+</style>

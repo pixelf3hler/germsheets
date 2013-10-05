@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+   <meta charset="UTF-8">
+   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+   <title>GermSheets 0.0.2</title>
+   <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1">
+   <style type="text/x-gss">
+   <!--
+      $green = #7eef48;
+      $black = #000000;
+      $iteratorBlock = `box-shadow: 0px 8px [i]px #000000;overflow: hidden`;
+      
+      ~roundCorners($radius) {
+         /* $radius is replaced by the argument value
+            no need for double-trailing inside mixins
+          */
+         border-radius: $radius;
+      }
+      
+      %%
+      body { margin: 0; padding: 0; width: 100%; height: 100%; font-size: 100%; font-family: sans-serif; }
+      p { color: #333; }
+      %%
+      
+      //line comment test
+      
+      +unroll(test,class,2,6,$iteratorBlock);
+      
+      #green_border {
+         /* remember to double trail variables inside style rules */
+         border: solid 1px $green;
+         font-size: 12px;
+         width: 220px;
+         line-height: <-recommendedLineHeight(12,220);
+      }
+      
+      .light_green {
+         /* call methods using the asterisk token * method calls also have to be double-trailed */
+         background-color: <-randomColor();
+         ~roundCorners(6px);
+      }
+      
+      ul {
+         list-style-type: none;
+         
+         /* nesting:
+            you can either use the backtick-operator to enable the parsers 'inline-thru' mode for one-level deep nesting: */
+            
+         `.nested_rule { 
+            display: none;
+          }`
+            
+         /* ..or escape the closing braces of nested rules with exclamation marks representing the nested depth:  
+            note that the inner rule has two trailing bangs
+         */
+         .childrule { 
+            color: $black;
+            font-family: consolas,monospace; 
+            #second_level {
+               color: #fff;
+            }!!
+         }!
+      }
+      
+   -->
+   </style>
+</head>
+<body>
+   <div id="debug_out"></div>
+   <script>
+   (function(window, undefined) {
+      window.echo = function(obj) {
+         return window.console && window.console.log && window.console.log(obj)
+      }
+   })(window)
+   </script>
+   <script src="lib/qd.0.0.1.js"></script>
+   <script src="core/germsheets.namespace_0.0.1.js"></script>
+   <script src="core/germsheets.http_0.0.1.js"></script>
+   <script src="core/germsheets.parser_0.0.2.js"></script>
+   <script src="core/germsheets.compiler_0.0.1.js"></script>
+   <script src="core/germsheets.core_0.0.2.js"></script>
+   <script>/*<![CDATA[*/
+      var 
+      gssNode = qD.$q('style[type="text/x-gss"]')
+      
+      gsCoreDebug(gssNode)
+      //gsDebug(qD.srlze(gssNode))
+      //, varTest = new gss.Variable("$deiMudda = 34em;".split("")),
+      //mixinTest = new gss.Mixin("~roundCorners($radius) { border-radius: $radius; }".split(""))
+      //germSheets.loadFunction("gssloadtest")
+      //mixinTest.process(".light_green { background-color: <-brighten($green, 25); ~roundCorners(6px); }")
+   /*]]>*/</script>
+</body>
+</html>
