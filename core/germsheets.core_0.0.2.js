@@ -1,4 +1,8 @@
-/*! germsheets v0.0.2 */
+/*! germsheets.core_0.0.2.js 
+    © 2013 max ɐʇ pixelf3hler · de
+    The MIT License
+    see license.txt
+*/
 (function(window, document, germSheets, undefined) {
    
    /*
@@ -727,7 +731,7 @@
       }
       
       this._builtMixins = []
-      this.gssMixins = {}
+      this.gssMixins = {} // contains identifiers as property fields..like gssMixins['roundCorners'] => 'border-radius: $radius'
       this.build_mixins = function() {
          if(this._builtMixins && this._builtMixins.length) return this._builtMixins
          echo("start building mixins")

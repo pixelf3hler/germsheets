@@ -1,5 +1,7 @@
-/*! germsheets    v0.0.2 
-    compiler      v0.0.1
+/*! germsheets.compiler_0.0.1.js
+    © 2013 max ɐʇ pixelf3hler · de
+    The MIT License
+    see license.txt
 */
 (function(window, germSheets, undefined) {
    

@@ -1,4 +1,8 @@
-/* germsheets v0.0.2 */
+/*! germsheets.parser_0.0.2.js 
+    © 2013 max ɐʇ pixelf3hler · de
+    The MIT License
+    see license.txt
+*/
 (function(window, document, germSheets, undefined) {
 var
 token = germSheets.token || {
