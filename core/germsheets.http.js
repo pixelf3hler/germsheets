@@ -2,11 +2,14 @@
 
 //goog.require('germsheets.namespace')
 
-/*! germsheets.http.js 
-  © 2013 max ɐʇ pixelf3hler · de
-    The MIT License
-    see license.txt
-*/
+/** 
+ *  @file a simple XMLHttpRequest wrapper
+ *  @version 1.0.0
+ *  @copyright © 2013 max ɐʇ pixelf3hler · de
+ *  @author Max Burow <max@pixelf3hler.de>
+ *  @license license.txt
+ *  The MIT License
+ */
 (function(window, document, germSheets, undefined) {
 
    function getXHR()

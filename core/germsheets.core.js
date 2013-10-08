@@ -3,11 +3,14 @@
 //goog.require('germsheets.parser')
 //goog.require('germsheets.compiler')
 
-/*! germsheets.core.js 
-    © 2013 max ɐʇ pixelf3hler · de
-    The MIT License
-    see license.txt
-*/
+/** 
+ *  @file germSheets core objects
+ *  @version 1.0.0
+ *  @copyright © 2013 max ɐʇ pixelf3hler · de
+ *  @author Max Burow <max@pixelf3hler.de>
+ *  @license license.txt
+ *  The MIT License
+ */
 (function(window, document, germSheets, undefined) {
    
    /*
@@ -70,18 +73,9 @@
       return array
    }
    
-   /**
-      @param args Array
-   */
-   germSheets.runOn = function(callerNode, methName) {
-      callerNode = callerNode || window
-      if(methName in germSheets.fn) {
-         return germSheets.fn[methName].apply(callerNode, Array.prototype.slice.call(arguments, 2))
-      }
-      return null
-   }
    
-   /* pauses execution for n/1000 seconds
+   /** @property {function} pause - pauses execution for n/1000 seconds
+    *  @param {number} n - the sleeping time in milliseconds
    ------*/
    germSheets.pause = function(n) {
       var 
@@ -95,10 +89,12 @@
       return n
    }
    
-   /* prototype for user defined
-      subroutines that replace
-      content in style declarations 
-      like variables or mixins
+   /** prototype for user defined
+       subroutines that replace
+       content in style declarations 
+       like variables or mixins
+       @private
+       @abstract
    */
    var 
    gssPrototype = {
@@ -678,6 +674,11 @@
  
 /* css rules 
 -----------------------*/
+   /** 
+    * prototype for css rule representations
+    * @private
+    * @abstract
+   ---*/
    var 
    cssPrototype = collapse(gssPrototype, {
       __constructor: function(args, node, ruleIndex) { 
@@ -825,15 +826,19 @@
          store = store || []
          if(!this.childRules || !this.childRules.length) return store
          
-         var i = 0, n = this.childRules.length
+         var 
+         store_i = store.length, 
+         i = 0, 
+         n = this.childRules.length
          
          for(; i<n; i++) {
-            store[i] = new germSheets.CSSRule(this.childRules[i], this.parentNode, this.ruleIndex + 1 + i)
-            store[i].identifier = (".:" !== store[i].identifier.substring(0,2)) ? this.identifier + " " + store[i].identifier : this.identifier + store[i].identifier.substring(1)
-            if(0 < store[i].childRules.length) {
-               store[i].buildChildRules(store)
+            store[store_i] = new germSheets.CSSRule(this.childRules[i], this.parentNode, this.ruleIndex + (n/10))
+            store[store_i].identifier = (".:" !== store[store_i].identifier.substring(0,2)) ? this.identifier + " " + store[store_i].identifier : this.identifier + store[store_i].identifier.substring(1)
+            if(0 < store[store_i].childRules.length) {
+               store[store_i].buildChildRules(store)
             }
          }
+         
          return store
       },
       ruleIndex: Number.NaN,
@@ -907,10 +912,12 @@
    
    /* ---- */
    
-   /* prototype for style node objects
-      gss style nodes collect the compiled data and
-      pass it on to the compiler to create the final output
-   */
+   /** prototype for style node objects
+       gss style nodes collect the compiled data and
+       pass it on to the compiler to create the final output
+       @private
+       @abstract
+    */
    var 
    nodePrototype = {
       thru: "",
@@ -1063,23 +1070,22 @@
          for(var i=0; i<this.cssRules.length; i++) {
             this._builtCSSRules[i] = new germSheets.CSSRule(this.cssRules[i], this, i)
             this.gssCSSRules[this._builtCSSRules[i].identifier] = this._builtCSSRules[i]
-            gssLog("gssCssRule: ")
-            gssLog(this.gssCSSRules[this._builtCSSRules[i].identifier])
          }
          
          var childRules = []
          this._builtCSSRules.forEach(function(obj) {
             if(0 < obj.childRules.length) {
-              obj.buildChildRules(childRules) 
+              obj.buildChildRules(childRules)
+              
             }
          })
          
          
          if(0 < childRules.length) {
             for(i=0; i<childRules.length; i++) {
-               var cIdx = childRules[i].ruleIndex
-               this._builtCSSRules.splice(cIdx, 0, childRules[i])
+               this._builtCSSRules.push(childRules[i])
                this.gssCSSRules[childRules[i].identifier] = childRules[i]
+               
             }
          }
          
@@ -1091,7 +1097,7 @@
                
                if(prev === obj || prev.identifier === obj.identifier) {
                   removed = this._builtCSSRules.splice(i--, 1)
-                  gssLog("removed CSSRule: " + removed)
+                  gssLog("removed CSSRule: ", removed)
                   prev = null
                   removed = undefined
                   continue
@@ -1099,7 +1105,20 @@
                prev = obj
             }
          }
-                  
+         
+         // sort on ruleIndex so that nested rules appear beneath their parents
+         this._builtCSSRules.sort(function(a,b) {
+            var 
+            intA = parseInt(a.ruleIndex), intB = parseInt(b.ruleIndex),
+            decA = a.ruleIndex % 1, decB = b.ruleIndex % 1
+            if(intA === intB) {
+               return (decA < decB) ? -1 : 1
+            }
+            return intA < intB ? -1 : 1
+         })
+         
+         gssLog("builtCSSRules: ", this._builtCSSRules)
+         
          return this.check("css")
       }
       
@@ -1153,7 +1172,7 @@
                siht.output += "\n/* CSS\n---------- */\n" + r2
                siht.onComplete(siht.output)
             })
-            // resume in for onComplete
+            // resume in onComplete
          })
       }
       
@@ -1239,6 +1258,8 @@
          }
          return "\n\n" + this.processed.cssClass.join("\n\n") + "\n\n"
       }*/
+      
+      // do i ever use that one?
       this.getValue = function(key) {
          if(token.VAR === key.charAt(0)) {
             key = key.substring(1)
@@ -1285,6 +1306,12 @@
       return xmlser.serializeToString(node)
    }
    
+   /**
+    * @property {function} run - collects the parsed source and passes it on to the compiler
+    * @param {object} gssNode - the source node. May or may not be serialized
+    * @param {boolean} isDOMNode - indicates if the first parameter is already serialized or not
+    * @returns {void}
+    */
    germSheets.run = function(gssNode, isDOMNode) {
       var 
       gssCode = isDOMNode ? germSheets.serialize(gssNode) : gssNode, // regex replaces opening style tags, optional xml comment tokens and <?gss processing instructions
@@ -1314,6 +1341,11 @@
       
    }
    
+   /**
+    * @property {function} init - gathers the source and kicks off the parser
+    * @param {object} src - either a dom node reference, a serialized dom node or a url to fetch the source from
+    * @returns {void}
+    */
    germSheets.init = function(src) {
       
       germSheets.stats.startTimer()

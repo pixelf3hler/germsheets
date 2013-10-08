@@ -1,25 +1,40 @@
 //goog.provide('germsheets.namespace')
 
-/*! germsheets.namespace.js
-    version 1.0.0
-  © 2013 max ɐʇ pixelf3hler · de
-    The MIT License
-    see license.txt
-*/
+/** 
+ *  @file creates a namespace for running germSheets
+ *  @version 1.0.0
+ *  @copyright © 2013 max ɐʇ pixelf3hler · de
+ *  @author Max Burow <max@pixelf3hler.de>
+ *  @license license.txt
+ *  The MIT License
+ */
 (function(window, undefined) {
    
+   /**
+    * @param {object} [config] - an optional configuration object. note that germSheets doesn't have to be called directly in order to work
+    */
    function germSheets(config) {
       germSheets.config = germSheets.config || config
    }
    
+   /**
+    * @property {object} config - germSheets default config
+    **/
    germSheets.config = {
       destructionPolicy: "immediately",
       enableLogging: true,
       logLevel: 1
    }
    
+   /**
+    * @property {string} version - the current code version
+    **/
    germSheets.version = "1.0.0"
    
+   
+   /**
+    * @property {object} token - a hash of tokens used for parsing gss source code
+    **/
    germSheets.token = {
       BANG: "!",
       VAR: "$",

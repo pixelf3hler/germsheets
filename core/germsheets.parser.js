@@ -3,11 +3,14 @@
 //goog.require('germsheets.namespace')
 //goog.require('germsheets.http')
 
-/*! germsheets.parser.js 
-  © 2013 max ɐʇ pixelf3hler · de
-    The MIT License
-    see license.txt
-*/
+/** 
+ *  @file main parsing routine
+ *  @version 1.0.0
+ *  @copyright © 2013 max ɐʇ pixelf3hler · de
+ *  @author Max Burow <max@pixelf3hler.de>
+ *  @license license.txt
+ *  The MIT License
+ */
 (function(window, document, germSheets, undefined) {
 
 var
