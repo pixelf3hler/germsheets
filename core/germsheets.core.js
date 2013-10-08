@@ -1314,27 +1314,31 @@
       
    }
    
-   germSheets.init = function(node) {
+   germSheets.init = function(src) {
       
       germSheets.stats.startTimer()
       
-      if("[object String]" === Object.prototype.toString.call(node)) {
-         // serialized node or url?
-         if(/^(?:<style type="text\/x-gss">|(?:<!--)?<\?gss)/im.test(node)) {
-            // looks like a node string or code wrapped in <?gss
+      src = src ? [src] : document.querySelectorAll('style[type="text/x-gss"]')
+      
+      foreach(src, function(node) {
+         if("[object String]" === Object.prototype.toString.call(node)) {
+            // serialized node or url?
+            if(/^(?:<style type="text\/x-gss">|(?:<!--)?<\?gss)/im.test(node)) {
+               // looks like a node string or code wrapped in <?gss
+               gssInfo("started running germSheets " + new Date().toISOString())
+               germSheets.run(node, false)
+            }else if(/\.gss$/i.test(node)){
+               // looks like a .gss file extension..so it might be a url
+               germSheets.httpRequest(node, function(response) {
+                  gssInfo("started running germSheets " + new Date().toISOString() + "\nsource file: " + node)
+                  germSheets.run(response, false)
+               })
+            }
+         }else {
             gssInfo("started running germSheets " + new Date().toISOString())
-            germSheets.run(node, false)
-         }else if(/\.gss$/i.test(node)){
-            // looks like a .gss file extension..so it might be a url
-            germSheets.httpRequest(node, function(response) {
-               gssInfo("started running germSheets " + new Date().toISOString() + "\nsource file: " + node)
-               germSheets.run(response, false)
-            })
+            germSheets.run(node, true)
          }
-      }else {
-         gssInfo("started running germSheets " + new Date().toISOString())
-         germSheets.run(node, true)
-      }
+      })
    }
    
 })(window, window.document, window.germSheets)
