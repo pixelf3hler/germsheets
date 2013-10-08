@@ -1,46 +1,17 @@
-/*! germsheets.parser_0.0.2.js 
-    © 2013 max ɐʇ pixelf3hler · de
+//goog.provide('germsheets.parser')
+
+//goog.require('germsheets.namespace')
+//goog.require('germsheets.http')
+
+/*! germsheets.parser.js 
+  © 2013 max ɐʇ pixelf3hler · de
     The MIT License
     see license.txt
 */
 (function(window, document, germSheets, undefined) {
+
 var
-token = germSheets.token || {
-   VAR: "$",
-   END_VAR: ";",
-   MIX: "~",
-   END_MIX_DECL: "}",
-   END_MIX_CALL: ";",
-   SKEL: "+",
-   END_SKEL: ";",
-   COMB: "/",
-   COMB2: "*",
-   COML: "/",
-   COML2: "/",
-   INLINE_THRU: "`",
-   THRU2: "%",
-   CSSCLASS: ".",
-   CSSPSEUDO: ":",
-   CSSID: "#",
-   CSSEL: new RegExp("^\\w", "i"),
-   END_CSS: "}",
-   DEL: String.fromCharCode(0x7F), // unicode u+007F => http://www.fileformat.info/info/unicode/char/7f/index.htm
-   // null byte to terminate 
-   NUL: String.fromCharCode(0x0),
-   LF: String.fromCharCode(0x0A),  //"\\u000A",  // 10 decimal
-   CR: String.fromCharCode(0x0D),//"\\u000D",   // 13 decimal
-   RETURN: String.fromCharCode(0x21B5)
-}/*,
-gssParser = {
-   source:"",
-   tknzr: null,
-   pass: 0,
-   passes: [],
-   mode: 0,
-   modes: {},
-   parse: function(){},
-   parse_thru: function(){}
-}*/
+token = germSheets.token
 
 function collapseArrays() {
    var r = [], i = 0, n = arguments.length
@@ -53,18 +24,17 @@ function collapseArrays() {
    return r
 }
 
-Tokenizer = germSheets.Tokenizer = function(str) {
+germSheets.Tokenizer = function(str) {
    this.rawInput = str
    this.tokens = (function(s) {
       //remove unneeded whitespace..that means either 0 or more at the beginning,
-      // 1 or more followed by another one
-      // or 0 or more at the end
+      // or 0 or more at the end of each line
       s = s.replace(/^\u0020*|\u0020*$/mg, "")
       // replace linebreaks with a visible glyph
       // for easier debugging
-      echo("Tokens after whitespace removal:\n" + s)
+      gssLog("Tokens after whitespace removal:\n" + s)
       s = s.replace(/\n|\r\n|\r/g, token.RETURN)
-      echo("Tokens after newline replace:\n" + s)
+      gssLog("Tokens after newline replace:\n" + s)
       
       return s.split("")
    })(str)
@@ -96,7 +66,7 @@ Tokenizer = germSheets.Tokenizer = function(str) {
    return this
 }
 
-Parser = germSheets.Parser = function(gss) {
+germSheets.Parser = function(gss) {
    this.source = gss
    this.store = {
       thru: "",
@@ -105,6 +75,7 @@ Parser = germSheets.Parser = function(gss) {
       mixins: [],
       skeletons: [],
       methods: [],
+      expressions: [],
       cssClass: [],
       cssElement: [],
       cssId: []
@@ -121,10 +92,10 @@ Parser = germSheets.Parser = function(gss) {
       */
    this.passes = ["Comments", "GSS", "Methods"]
    this.mode = 0
-   this.modes = { open: 0, comment: 1, commentline: 10, commentblock: 11, variable: 2, mixin: 3, skeleton: 4, cssclass: 5, cssid: 6, cssel: 7, method: 8, thru: 9 }
+   this.modes = { open: 0, comment: 1, commentline: 10, commentblock: 11, expression: 12, variable: 2, mixin: 3, skeleton: 4, cssclass: 5, cssid: 6, cssel: 7, method: 8, thru: 9 }
    
    this.parse = function() {
-      this.tknzr = this.tknzr || new Tokenizer(this.parseThru(this.source))
+      this.tknzr = this.tknzr || new germSheets.Tokenizer(this.parseThru(this.source))
       
       while(this.pass < this.passes.length) {
          var parseMethod = "parse" + this.passes[this.pass]
@@ -149,14 +120,14 @@ Parser = germSheets.Parser = function(gss) {
    */
    this.parseComments = function() {
       var tkn, ntkn, endCommentBlock = false
-      echo("start removing comments")
+      gssLog("start removing comments")
       while(false !== (tkn = this.tknzr.nextToken())) {
          ntkn = (this.tknzr.index < this.tknzr.tokens.length) ? this.tknzr.tokens[this.tknzr.index] : token.NUL
          
          if(token.COML === tkn && token.COML2 === ntkn) {
             if(this.modes.commentline !== this.mode) {
                this.mode = this.modes.commentline
-               echo("switch mode to: commentline")
+               gssLog("switch mode to: commentline")
             } 
             
          }
@@ -164,7 +135,7 @@ Parser = germSheets.Parser = function(gss) {
          if(token.COMB === tkn && token.COMB2 === ntkn) {
             if(this.modes.commentblock !== this.mode) {
                this.mode = this.modes.commentblock
-               echo("switch mode to: commentblock")
+               gssLog("switch mode to: commentblock")
             }
             
          }
@@ -173,7 +144,7 @@ Parser = germSheets.Parser = function(gss) {
             if(token.RETURN === tkn) {
                this.mode = 0
             }
-            ////echo("marked line comment token: " + tkn)
+            ////gssLog("marked line comment token: " + tkn)
             this.tknzr.markTokenForRemoval()
             continue
          }
@@ -183,7 +154,7 @@ Parser = germSheets.Parser = function(gss) {
             if(endCommentBlock && token.COMB === tkn) { 
                endCommentBlock = false
                this.mode = 0
-               echo("switch mode to open")
+               gssLog("switch mode to open")
                
             }
             
@@ -191,7 +162,7 @@ Parser = germSheets.Parser = function(gss) {
                endCommentBlock = true
             }
             
-            //echo("marked commentblock token: " + tkn)
+            //gssLog("marked commentblock token: " + tkn)
             this.tknzr.markTokenForRemoval()
             //continue
          }
@@ -200,7 +171,7 @@ Parser = germSheets.Parser = function(gss) {
       this.tknzr.reset()
       this.store.tmp = this.tknzr.tokens.join("")
       
-      //echo(this.store.tmp)
+      //gssLog(this.store.tmp)
       
       return ++this.pass
    }
@@ -210,7 +181,7 @@ Parser = germSheets.Parser = function(gss) {
    this.parseGSS = function() {
       var tkn, ntkn, varIdx = 0, mixIdx = 0, skelIdx = 0,
           cssClsIdx = 0, cssIdIdx = 0, cssElIdx = 0, inlineThruMode = false
-      echo("start parsing gss")
+      gssLog("start parsing gss")
       while(false !== (tkn = this.tknzr.nextToken())) {
          ntkn = (this.tknzr.index < this.tknzr.tokens.length) ? this.tknzr.tokens[this.tknzr.index] : token.NUL
          
@@ -222,7 +193,7 @@ Parser = germSheets.Parser = function(gss) {
          if(token.CSSCLASS === tkn) {
             if(this.mode === this.modes.open) {
                this.mode = this.modes.cssclass
-               echo("switch mode to: cssclass")
+               gssLog("switch mode to: cssclass")
                this.store.cssClass[cssClsIdx] = []
             }
          }
@@ -230,7 +201,7 @@ Parser = germSheets.Parser = function(gss) {
          if(token.CSSID === tkn) {
             if(this.mode === this.modes.open) {
                this.mode = this.modes.cssid
-               echo("switch mode to: cssid")
+               gssLog("switch mode to: cssid")
                this.store.cssId[cssIdIdx] = []
             }
          }
@@ -238,7 +209,7 @@ Parser = germSheets.Parser = function(gss) {
          if(token.CSSEL.test(tkn)) {
             if(this.mode === this.modes.open) {
                this.mode = this.modes.cssel
-               echo("switch mode to: cssel")
+               gssLog("switch mode to: cssel")
                this.store.cssElement[cssElIdx] = []
             }
          }
@@ -253,7 +224,7 @@ Parser = germSheets.Parser = function(gss) {
          if(token.VAR === tkn) {
             if(this.mode === this.modes.open) {
                this.mode = this.modes.variable
-               echo("switch mode to: variable")
+               gssLog("switch mode to: variable")
                this.store.vars[varIdx] = []
             }
          }
@@ -261,7 +232,7 @@ Parser = germSheets.Parser = function(gss) {
          if(token.MIX === tkn) {
             if(this.mode === this.modes.open) {
                this.mode = this.modes.mixin
-               echo("switch mode to: mixin")
+               gssLog("switch mode to: mixin")
                this.store.mixins[mixIdx] = []
             }
          }
@@ -269,7 +240,7 @@ Parser = germSheets.Parser = function(gss) {
          if(token.SKEL === tkn) {
             if(this.mode === this.modes.open) {
                this.mode = this.modes.skeleton
-               echo("switch mode to: skeleton")
+               gssLog("switch mode to: skeleton")
                this.store.skeletons[skelIdx] = []
             }
          }
@@ -282,7 +253,7 @@ Parser = germSheets.Parser = function(gss) {
                if(token.END_CSS === tkn && token.BANG !== ntkn) {
                   this.mode = 0
                   cssClsIdx += 1
-                  echo("switch mode to: open")
+                  gssLog("switch mode to: open")
                }
             }
             continue
@@ -296,7 +267,7 @@ Parser = germSheets.Parser = function(gss) {
                if(token.END_CSS === tkn && token.BANG !== ntkn) {
                   this.mode = 0
                   cssIdIdx += 1
-                  echo("switch mode to: open")
+                  gssLog("switch mode to: open")
                }
             }
             continue
@@ -310,7 +281,7 @@ Parser = germSheets.Parser = function(gss) {
                if(token.END_CSS === tkn && token.BANG !== ntkn) {
                   this.mode = 0
                   cssElIdx += 1
-                  echo("switch mode to: open")
+                  gssLog("switch mode to: open")
                }
             }
             continue
@@ -324,7 +295,7 @@ Parser = germSheets.Parser = function(gss) {
                if(token.END_VAR === tkn) {
                   this.mode = 0
                   varIdx += 1
-                  echo("switch mode to: open")
+                  gssLog("switch mode to: open")
                }
             }
             
@@ -340,7 +311,7 @@ Parser = germSheets.Parser = function(gss) {
             if(token.END_MIX_DECL === tkn) {
                this.mode = 0
                mixIdx += 1
-               echo("switch mode to: open")
+               gssLog("switch mode to: open")
             }
             
             this.tknzr.markTokenForRemoval()
@@ -355,7 +326,7 @@ Parser = germSheets.Parser = function(gss) {
             if(token.END_SKEL === tkn) {
                this.mode = 0
                skelIdx += 1
-               echo("switch mode to: open")
+               gssLog("switch mode to: open")
             }
             
             this.tknzr.markTokenForRemoval()
@@ -373,30 +344,39 @@ Parser = germSheets.Parser = function(gss) {
       
       this.tknzr.tokens = this.store.tmp.split('')
       
-      //echo(this.store.tmp)
+      //gssLog(this.store.tmp)
       
       varIdx = mixIdx = skelIdx = cssClsIdx = cssIdIdx = cssElIdx = inlineThruMode = undefined
       
       return ++this.pass
    }
    
-   /* parse method calls
+   /* parse method calls and inline expressions
       moved to a separate pass to keep the main pass tidy and readable
       since method calls should only appear in css rule definitions this pass only requires
       a portion of the raw input
    ---*/
    
    this.parseMethods = function() {
-      var tkn, ntkn, methIdx = 0
+      var tkn, ntkn, methIdx = 0, expIdx = 0
       this.mode = this.modes.open
-      echo("start parsing methods")
+      gssLog("start parsing methods")
       while(false !== (tkn = this.tknzr.nextToken())) {
          ntkn = (this.tknzr.index < this.tknzr.tokens.length) ? this.tknzr.tokens[this.tknzr.index] : token.NUL
          
          if(token.METH === tkn && token.METH2 === ntkn) {
-            if(this.mode !== this.modes.method) {
+            if(this.mode == this.modes.open) {
                this.mode = this.modes.method
-               this.store.methods[methIdx] = []
+               this.store.methods[methIdx] = [tkn]
+               continue
+            }
+         }
+         
+         if(token.METH === tkn && token.PAR_OPEN === ntkn) {
+            if(this.mode === this.modes.open) {
+               this.mode = this.modes.expression
+               this.store.expressions[expIdx] = [tkn]
+               continue
             }
          }
          
@@ -406,35 +386,54 @@ Parser = germSheets.Parser = function(gss) {
             if(token.END_VAR === tkn) {
                this.mode = 0
                methIdx += 1
-               echo("switch mode to: open")
+               gssLog("switch mode to: open")
             }
             continue
          }
+         
+         if(this.modes.expression === this.mode) {
+            this.store.expressions[expIdx].push(tkn)
+            
+            if(token.END_VAR === tkn) {
+               this.mode = 0
+               expIdx += 1
+            }
+            continue
+         }
+         
       }
       
-      echo("vars: ")
+      gssLog("vars: ")
       this.store.vars.forEach(function(obj) {
-         echo(obj.join("") + "\n***\n")
+         gssLog(obj.join("") + "\n***\n")
       })
-      echo("mixins: ")
+      gssLog("mixins: ")
       this.store.mixins.forEach(function(obj) {
-         echo(obj.join("") + "\n***\n")
+         gssLog(obj.join("") + "\n***\n")
       })
-      echo("methods: ")
+      gssLog("methods: ")
       this.store.methods.forEach(function(obj) {
-         echo(obj.join("") + "\n***\n")
+         gssLog(obj.join("") + "\n***\n")
       })
-      echo("cssClass: ")
+      gssLog("skeletons: ")
+      this.store.skeletons.forEach(function(obj) {
+         gssLog(obj.join("") + "\n***\n")
+      })
+      gssLog("expressions: ")
+      this.store.expressions.forEach(function(obj) {
+         gssLog(obj.join("") + "\n***\n")
+      })
+      gssLog("cssClass: ")
       this.store.cssClass.forEach(function(obj) {
-         echo(obj.join("") + "\n***\n")
+         gssLog(obj.join("") + "\n***\n")
       })
-      echo("cssElement: ")
+      gssLog("cssElement: ")
       this.store.cssElement.forEach(function(obj) {
-         echo(obj.join("") + "\n***\n")
+         gssLog(obj.join("") + "\n***\n")
       })
-      echo("cssId: ")
+      gssLog("cssId: ")
       this.store.cssId.forEach(function(obj) {
-         echo(obj.join("") + "\n***\n")
+         gssLog(obj.join("") + "\n***\n")
       })
       
       this.tknzr.reset()
@@ -449,10 +448,13 @@ Parser = germSheets.Parser = function(gss) {
          vars: this.store.vars.slice(),
          mixins: this.store.mixins.slice(),
          methods: this.store.methods.slice(),
+         skeletons: this.store.skeletons.slice(),
+         expressions: this.store.expressions.slice(),
          cssRule: collapseArrays(this.store.cssElement.slice(), this.store.cssId.slice(), this.store.cssClass.slice())
       }
-      echo("parser::unstore")
-      echo(r)
+      
+      gssLog("parser::unstore")
+      gssLog(r)
       
       for(p in this.store) {
          delete this.store[p]

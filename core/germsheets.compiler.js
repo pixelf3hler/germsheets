@@ -1,5 +1,11 @@
-/*! germsheets.compiler_0.0.1.js
-    © 2013 max ɐʇ pixelf3hler · de
+//goog.provide('germsheets.compiler')
+
+//goog.require('germsheets.namespace')
+//goog.require('germsheets.http')
+//goog.require('germsheets.parser')
+
+/*! germsheets.compiler.js
+  © 2013 max ɐʇ pixelf3hler · de
     The MIT License
     see license.txt
 */
@@ -20,25 +26,28 @@
       }
    */
    
-   germSheets.Compiler = function(gssNode, gssData) {
+   germSheets.Compiler = function(gssData, gssSourceCode) {
       this.rawData = gssData
       
-      this.germNode = new germSheets.GermNode(gssNode, gssData)
+      this.germNode = new germSheets.GermNode(gssData, gssSourceCode)
       this.output = "/* *** germsheets 0.0.2 *** */\n\n"
       this.compile = function(callback) {
-         var siht = this, errors = 2
+         var siht = this
+         callback = callback || null
+         
          this.germNode.setCompleteCallback(function(processed) {
             siht.output += processed
-            echo("callback@compiler")
-            //if(0 === --errors) {
-               callback(siht.output + "\n\n/* *** check out germsheets at http://gs.pixelf3hler.de/ *** */")
-            //}
+            gssLog("callback@compiler")
+            callback && callback(siht.output + "\n\n/* *** check out germsheets at http://gs.pixelf3hler.de/ *** */")
          })
          //this.germNode.executeMethods()
-         this.output += this.germNode.thru
+         //this.output += this.germNode.thru.slice()
+         
+         // start main processing routine
+         this.germNode.process()
          
          //this.germNode.process("skeletons")
-         this.germNode.process("cssRule")
+         //this.germNode.process("cssRule")
       }
    }
    

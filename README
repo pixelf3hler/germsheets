@@ -1,11 +1,12 @@
 germSheets
 
-a Sass-like css extension written in Javascript. Just add a germsheets style node in the head of your html, give it a text/x-gss MIME-type and germSheets will try to compile it.
+a Sass-like css extension written in Javascript. Just add a germsheets style node in the head of your html, give it a text/x-gss MIME-type pass it on to germSheets.init(). init() also accepts a path to a gss source file (extension .gss)
+
 
 example:
 
 <style type="text/x-gss">
-<!--
+<!--<?gss
 
 // no one-line comments in css? i don't think so..
 
@@ -29,6 +30,10 @@ $green = #7eff48; // store stuff in variables
    background-color: <-brighten($green, 25);
 }
 
+.inline-expression {
+   width: <(window.innerWidth)px; // jup..inline javascript expressions..why doesn't css have those anyway?
+}
+
 ul {
    list-style-type: none;
    // define nested rules the easy way:
@@ -43,12 +48,12 @@ ul {
    `li:first-child { font-size: 1.5em; }`
 }
 
-/* you can also exclude css from beeing processed by germSheets.
+/* you also can exclude css from beeing processed by germSheets.
    Just wrap it in %%'s
 */
 %%
 *, *:before, *:after { box-sizing: border-box; }
 %%
 
--->
+?>-->
 </style>
