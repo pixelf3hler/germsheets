@@ -17,15 +17,13 @@
    /*
       gssData structure:
       {
-         thru: "",      => unmodified css
-         tmp: "",       => the result of the last parser pass as string
-         vars: [],      => variable definitions
-         mixins: [],    => mixin definitions
-         methods:[]     => method calls
-         skeletons: [], => skeleton calls
-         cssClass: [],  => css class rules
-         cssElement: [],=> css element rules
-         cssId: []      => css id rules
+         thru: "",         => unmodified css
+         tmp: "",          => the result of the last parser pass as string
+         vars: [],         => variable definitions
+         mixins: [],       => mixin definitions
+         methods:[]        => method calls
+         skeletons: [],    => skeleton calls
+         cssRuleData: []   => css rule constructor objects
       }
    */
    
@@ -33,14 +31,14 @@
       this.rawData = gssData
       
       this.germNode = new germSheets.GermNode(gssData, gssSourceCode)
-      this.output = "/* *** germsheets 0.0.2 *** */\n\n"
+      this.output = "/* *** germsheets 1.0.1 *** */\n\n"
       this.compile = function(callback) {
          var siht = this
          callback = callback || null
          
          this.germNode.setCompleteCallback(function(processed) {
             siht.output += processed
-            gssLog("callback@compiler")
+            gssInfo("callback@compiler")
             callback && callback(siht.output + "\n\n/* *** check out germsheets at http://gs.pixelf3hler.de/ *** */")
          })
          //this.germNode.executeMethods()

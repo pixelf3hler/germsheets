@@ -34,16 +34,6 @@
       return str.replace(new RegExp('[.\\\\+*?\\[\\^\\]$(){}=!<>|:\\-]', 'g'), '\\$&')
    }
    
-   function collapse(obj1, obj2) {
-      var p, r = {}
-      for(p in obj1) {
-         r[p] = obj1[p]
-      }
-      for(p in obj2) {
-         r[p] = obj2[p]
-      }
-      return r
-   }
    
    /* i've banchmarked this against Array.forEach
       and found out that its a bit faster below 100.000 iterations
@@ -73,6 +63,21 @@
       return array
    }
    
+   /** collapses two given objects into a new one
+    *  complex datatype properties are referenced on the new object
+    *  @private
+    */
+   function collapse(obj1, obj2) {
+      var p, r = {}
+      for(p in obj1) {
+         r[p] = obj1[p]
+      }
+      for(p in obj2) {
+         r[p] = obj2[p]
+      }
+      return r
+   }
+   
    
    /** @property {function} pause - pauses execution for n/1000 seconds
     *  @param {number} n - the sleeping time in milliseconds
@@ -81,11 +86,11 @@
       var 
       start = +new Date
       now = start
-      gssLog("pausing...")
+      gssInfo("pausing...")
       while(now - start < n) {
          now = +new Date
       }
-      gssLog("paused for: " + n + "ms")
+      gssInfo("paused for: " + n + "ms")
       return n
    }
    
@@ -97,12 +102,35 @@
        @abstract
    */
    var 
-   gssPrototype = {
+   gssCore = {
       /* the raw content 
          a variable might look like: "$green = #7eef48;"
          a mixin: "~roundCorners($radius) {/\u21B5\u21B5/border-radius: $radius;/\u21B5/}"
       */
       gssText: "",
+      
+      /* the processed content
+         #7eef48; or border-radius: 6px;
+      */
+      cssText: "",
+      
+      /* builds the object in question from
+         string
+      */
+      build: function(){},
+      
+      /* replaces occurences
+         of this.gssText in input with this.cssText
+      */
+      process: function(){},
+      
+      /** used to enforce a proper
+          execution order during processing
+          @protected
+      */
+      procIndex: 0
+   }, // collapse(gssCore, {
+   gssPrototype = gssCore.slice({
       /* the sanizized identifier
          green or roundCorners
       */
@@ -111,17 +139,14 @@
       /* ~ $ +
       */
       token: "",
-      /* the processed content
-         #7eef48; or border-radius: 6px;
-      */
-      cssText: "",
+      
       dirty: true,
       output: "",
       parentNode: null,
-      /* replaces occurences
-         of this.gssText in input with this.cssText
-      */
-      process: function(input){},
+      getFullIdentifier: function() {
+         return this.token + this.identifier
+      },
+      
       /* applies initial values
          provided in the args array
       */
@@ -129,19 +154,21 @@
          this.gssText = Array.isArray(args) ? args.join("") : args
          this.parentNode = node || germSheets
          return this.build()
-      },
-      build: function() {}
-   }
+      }
+      
+   })
    
    
    /* Variables
    -----------------------*/
    germSheets.Variable = function(args, node) {
-   
+      
       this.build = function() {
-         var tkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u0020/g, ''))
+         this.isExpression = false
+         this.isMethod = false
+         var tkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u0020/g, ''))
          while(false !== (tkn = tknzr.nextToken())) {
-            // $green=#7eef48;
+            ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
             if(token.VAR === tkn) {
                this.token = tkn
                if("open" === mode) {
@@ -164,11 +191,51 @@
             
             if("val" === mode) {
                this.cssText += tkn
+               // add support for storing methods / expressions
+               if(token.METH === tkn) {
+                  if(token.METH2 === ntkn) {
+                     this.isMethod = true
+                     //gssDebug("Variable::this.isMethod", this.isMethod)
+                  }else if(token.PAR_OPEN === ntkn) {
+                     this.isExpression = true
+                     //gssDebug("Variable::this.isExpression", this.isExpression)
+                  }
+               }
+                
                if(token.VAR_END === tkn) {
                   this.dirty = false
                }
             }
          }
+         
+         /* variables are the first things that are built
+            so i guess that GermNode::getObjects fails at this point
+         */
+         if(this.isExpression) {
+            var ref = this.parentNode.getObjects("Expressions", [this.cssText])
+            if(!ref || !ref.length) {
+               ref = this.parentNode.newObject("Expression", this.cssText)
+            }else {
+               ref = ref[0]
+            }
+            this.cssText = ref.process(this.cssText)
+            //gssDebug("VariableExpression::cssText", this.identifier, this.cssText)
+         }
+         
+         if(this.isMethod) {
+            ref = this.parentNode.getObjects("Methods", [this.cssText])
+            if(!ref || !ref.length) {
+               ref = this.parentNode.newObject("Method", this.cssText)
+            }else {
+               ref = ref[0]
+            }
+            var siht = this
+            ref.process(this.cssText, function(refOut) {
+               siht.cssText = refOut
+               //gssDebug("VariableMethod::cssText", this.identifier, this.cssText)
+            })
+         }
+         
       }
       this.process = function(input) {
          var regex = new RegExp('(?:' + regEsc(this.token + this.identifier) + ');*', "g")
@@ -177,7 +244,7 @@
          return this.output
       }
       
-      return this.__constructor(args, node)
+      return gssPrototype.__constructor.call(this, args, node)
       
    }
    germSheets.Variable.prototype = gssPrototype
@@ -190,6 +257,9 @@
       this.argumentIds = ""
       this.argumentValues = ""
       this.rawCssText = ""
+      /*this.getFullIdentifier = function() {
+         return this.gssText.replace(/;$/g, '')
+      }*/
       // ~roundCorners($radius) { border-radius: $radius; }
       this.build = function() {
          var tkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u21B5/g, ''))
@@ -267,7 +337,7 @@
          return this.output
       }
       
-      return this.__constructor(args, node)
+      return gssPrototype.__constructor.call(this, args, node)
    }
    germSheets.Mixin.prototype = gssPrototype
    
@@ -279,6 +349,9 @@
       this.rawArguments = ""
       this.argumentValues = []
       this.js = null
+      /*this.getFullIdentifier = function() {
+         return this.gssText.replace(/;$/g, '')
+      }*/
       // <-brighten($green,25);
       this.build = function() {
          var tkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u0020*/g, ''))
@@ -289,14 +362,14 @@
             if(token.METH === tkn && token.METH2 === ntkn) {
                if("open" === mode) {
                   mode = "token"
-                  //gssLog("switch mode to: " + mode + " at token: " + tkn)
+                  //gssInfo("switch mode to: " + mode + " at token: " + tkn)
                }
             }
             
             if(token.PAR_OPEN === tkn) {
                if("open" === mode) {
                   mode = "args"
-                  //gssLog("switch mode to: " + mode + " at token: " + tkn)
+                  //gssInfo("switch mode to: " + mode + " at token: " + tkn)
                   continue
                }
             }
@@ -312,7 +385,7 @@
                
                if(token.METH2 === tkn) {
                   mode = "id"
-                  //gssLog("switch mode to: " + mode + " at token: " + tkn)
+                  //gssInfo("switch mode to: " + mode + " at token: " + tkn)
                }
                this.token += tkn
                continue
@@ -322,7 +395,7 @@
                
                if(token.PAR_OPEN === ntkn) {
                   mode = "open"
-                  //gssLog("switch mode to: " + mode + " at token: " + tkn)
+                  //gssInfo("switch mode to: " + mode + " at token: " + tkn)
                }
                this.identifier += tkn
                continue
@@ -332,19 +405,19 @@
                this.rawArguments += tkn
                if(token.PAR_CLOSE === ntkn) {
                   mode = "open"
-                  //gssLog("switch mode to: " + mode + " at token: " + tkn)
+                  //gssInfo("switch mode to: " + mode + " at token: " + tkn)
                }
                continue
             }  
          }
-         gssLog("build complete: " + this.identifier)
-         //gssLog(this)
+         gssInfo("build complete: " + this.identifier)
+         //gssInfo(this)
          
          return this
       }
       
       this.process = function(input, callback) {
-         gssInfo("call to process()")
+         gssInfo("call to process(" + input + ")")
          // only do all that crap if necessary..
          if(-1 === input.indexOf(this.token + this.identifier)) {
             callback(input)
@@ -388,7 +461,7 @@
          
          return this.output
       }
-      return this.__constructor(args, node)
+      return gssPrototype.__constructor.call(this, args, node)
    }
    germSheets.Method.prototype = gssPrototype
    
@@ -401,7 +474,7 @@
       this.rawArguments = ""
       this.argumentValues = []
       this.build = function() {
-         var tkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u0020*/g, ''))
+         var tkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u0020{2,}/g, ''))
          while(false !== (tkn = tknzr.nextToken())) {
             ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
             
@@ -443,6 +516,9 @@
                continue
             }  
          }
+         // remove inline-thru toggles
+         this.rawArguments = this.rawArguments.replace(/`/g, '')
+         
          return this
       }
       
@@ -474,7 +550,7 @@
          n = requiredVars.length
          
          for(; i < n; i++) {
-         //gssLog("skeleton::process: " + varInputs[i])
+         //gssInfo("skeleton::process: " + varInputs[i])
             this.argumentValues.push(requiredVars[i].process(varInputs[i]))
          }
          // call method on germSheets.fn
@@ -483,7 +559,7 @@
          return this.output
       }
       
-      return this.__constructor(args, node)
+      return gssPrototype.__constructor.call(this, args, node)
    }
    germSheets.Skeleton.prototype = gssPrototype
    
@@ -500,8 +576,12 @@
       this.cleanExpression = ""
       this.output = ""
       this.cssReferences = []
+      this.hasReferences = false
+      this.getFullIdentifier = function() {
+         return this.gssText.replace(/(?:\(.*\))*;$/g, '')
+      }
       this.build = function() {
-         var tkn, ntkn, hasRefs = false, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u0020*/g, ''))
+         var tkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u0020*/g, ''))
          while(false !== (tkn = tknzr.nextToken())) {
             ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
             
@@ -513,7 +593,7 @@
             
             if(token.SQUARE_OPEN === tkn) {
                if("exp" === mode) {
-                  hasRefs = true
+                  this.hasReferences = true
                }
             }
             
@@ -538,15 +618,6 @@
                continue
             }
             
-            /*if("unit" === mode) {
-               
-               if(token.END_VAR === tkn) {
-                  break
-               }
-               this.cssUnit += tkn
-               continue
-            }*/
-            
          }
          var siht = this
          this.rawExpression = this.rawExpression.replace(/\)?(?:em|px|\%|in|mm|cm|ext|pt|pc)*;$/g, function(m) {
@@ -555,7 +626,7 @@
             return ""
          })
          
-         if(hasRefs) {
+         if(this.hasReferences) {
             tknzr.index = 0
             tknzr.tokens.length = 0
             tknzr.tokens = this.rawExpression.split("")
@@ -631,21 +702,19 @@
          return this.output
       }
       
-      return this.__constructor(args, node)
+      return gssPrototype.__constructor.call(this, args, node)
    }
    germSheets.Expression.prototype = gssPrototype
    
-   germSheets.CSSReference = function(args, expression) {
-      this.expression = expression
-      this.rootNode = expression.parentNode
-      this.referenceId = ""
-      this.referenceProperty = ""
-      this.reference = null
-      this.gssText = ""
-      this.cssText = ""
-      
-      // .box[width]
-      this.build = function(str) {
+   
+   var
+   cssReferencePrototype = {
+      build: function(str, expression) {
+         this.expression = expression
+         this.rootNode = expression.parentNode
+         this.cssText = ""
+         this.reference = null
+         
          var cnt = 0, siht = this
          this.gssText = str.replace(/[a-z\.#\-]*[^\[\]]/g, function(m) {
             if(0 === ++cnt % 2) {
@@ -659,18 +728,326 @@
          })
          return this
       }
+   }
+   
+   germSheets.CSSReference = function(args, expression) {
       this.process = function(input) {
          input = input || ""
          this.reference = this.rootNode.getCSSRule(this.referenceId)
-         this.cssText = this.reference.getStyleDeclaration(this.referenceProperty)
+         this.cssText = this.reference.getStyle(this.referenceProperty)
          
          return input ? input.replace(this.gssText, this.cssText) : this.cssText
       }
-      return this.build(args)
+      return cssReferencePrototype.build.call(this, args, expression)
    }
+   germSheets.CSSReference.prototype = cssReferencePrototype
 /* ------  */
  
-
+/* css declarations
+ ----------------- */
+   var // collapse(gssCore, {     
+   cssDeclarationPrototype = gssCore.slice({     
+      __constructor: function(args, rule) {
+         this.gssText = (Array.isArray(args)) ? args.join('') : args
+         this.cssText = ""
+         this.parentRule = rule
+         this.rootNode = rule.parentNode
+         this.varRefs = []
+         this.methodRefs = []
+         this.mixinRefs = []
+         this.expressionRefs = []
+         this.property = ""
+         this.gssValue = ""
+         this.vars = []
+         this.methods = []
+         this.mixins = []
+         this.expressions = []
+         this.output = ""
+         
+         return cssDeclarationPrototype.build.call(this)
+      },
+      build: function() {
+         
+         /* it could be that a declaration only contains a mixin call, without
+            referencing a css property..so we have to take that into account.. 
+            in that case gssText should be equal to gssValue and property should be either
+            the mixin token or the mixin name? the token is probably better..*/
+         if(token.MIX === this.gssText.charAt(0)) {
+            this.mixins.push(this.gssText)
+            this.property = token.MIX.slice()
+            this.gssValue = this.gssText
+            // i think we're done here..since a declarationObject contains only one declaration
+            // and mixin calls can't be nested..just fetch the actual mixin object and return this
+            this.mixinRefs = this.rootNode.getObjects("Mixins", this.mixins)
+            return this
+         }
+         
+         // else
+         this.property = this.gssText.substring(0, this.gssText.indexOf(":")).replace(/^\s*|\s*$/g, '')
+         this.gssValue = this.gssText.substring(this.property.length + 1).replace(/^\s*|\s*$/g, '')
+         
+         //gssDebug("this@declaration::build", this)
+         // parse gssValue for references
+         // variables, methods and expressions usually assign values to properties and it's desired for expressions to 
+         // support nesting as well. Also, there could be more than one reference per declaration (like in shorthand css properties)
+         // so, to be sure what we have its best to parse the raw value token by token
+         var 
+         refIdx = 0, idxReset = false,
+         tkn, ltkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssValue)
+         
+         while(false !== (tkn = tknzr.nextToken())) {
+            ltkn = ntkn || tkn
+            ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
+            
+            if(token.VAR === tkn) {
+               if("open" === mode) {
+                  mode = "var"
+                  
+                  if(idxReset) {
+                     refIdx = this.vars.length
+                     idxReset = false
+                  }
+                  
+                  this.vars[refIdx] = tkn
+                  continue
+               }
+            }
+            
+            if(token.MIX === tkn) {
+               if("open" === mode) {
+                  
+                  gssError("Syntax Error", "germSheets.Mixin can't be assigned to CSS properties")
+                  
+               }else {
+                  gssError("Syntax Error", "germSheets.Mixin doesn't support nesting yet")
+               }
+               mode = "exclude"
+               continue
+            }
+            
+            if(token.METH === tkn) {
+               if(token.METH2 === ntkn) {
+                  if("open" === mode) {
+                     mode = "meth"
+                     
+                     if(idxReset) {
+                        refIdx = this.methods.length
+                        idxReset = false
+                     }
+                     
+                     this.methods[refIdx] = tkn
+                     continue
+                  }
+               }
+               if(token.PAR_OPEN === ntkn) {
+                  if("open" === mode) { // TODO enable expressions inside css functions to be parsed correctly
+                     mode = "exp"
+                     
+                     if(idxReset) {
+                        refIdx = this.expressions.length
+                        idxReset = false
+                     }
+                     
+                     this.expressions[refIdx] = tkn
+                     continue
+                  }
+               }
+            }
+            
+            if(token.CSSPROP.test(tkn)) {
+               if("open" === mode) {
+                  mode = "css"
+                  this.cssText += tkn
+                  continue
+               }
+            }
+            
+            if("exclude" === mode) {
+               if(token.END_VAR === tkn) {
+                  mode = "open"
+                  continue
+               }
+            }
+            
+            if("var" === mode) {
+               /*
+                  could be either
+                     prop: blblb $var;
+                  or
+                     prop: $var bliblib;
+               */
+               
+               this.vars[refIdx] += tkn
+               
+               if(token.END_VAR === tkn) {
+                  mode = "open"
+                  idxReset = true
+                  continue
+               }
+               
+               if(token.SPACE === ntkn) {
+                  mode = "open"
+                  idxReset = true
+               }
+               continue
+            }
+            
+            if("meth" === mode) {
+               this.methods[refIdx] += tkn
+               if(token.END_VAR === tkn) {
+                  mode = "open"
+                  idxReset = true
+               }
+               continue
+            }
+            
+            if("exp" === mode) {
+               this.expressions[refIdx] += tkn
+               
+               // check nested end sequence ));
+               if(token.PAR_CLOSE === tkn && token.PAR_CLOSE === ltkn && token.END_VAR === ntkn) {
+                  mode = "open"
+                  idxReset = true
+                  continue
+               }
+               
+               if(token.END_VAR === tkn) {
+                  mode = "open"
+                  idxReset = true
+               }
+               
+               continue
+            }
+            
+            if("css" === mode) {
+               this.cssText += tkn
+               if(token.END_VAR === tkn) {
+                  mode = "open"
+                  idxReset = true
+               }
+               continue
+            }
+         }
+         
+         var siht = this
+         
+         if(this.vars && this.vars.length) {
+            this.varRefs = this.rootNode.getObjects("Vars", this.vars)
+         }
+         
+         if(this.methods && this.methods.length) {
+            this.methodRefs = this.rootNode.getObjects("Methods", this.methods)
+            if(!this.methodRefs || (this.methodRefs.length !== this.methods.length)) {
+               this.methods.forEach(function(itm, idx) {
+                  //gssDebug("new method", itm)
+                  siht.methodRefs[idx] = siht.rootNode.newObject("Method", itm)
+                  //gssDebug(siht.methodRefs[idx])
+               })
+            }
+         }
+         
+         if(this.expressions && this.expressions.length) {
+            this.expressionRefs = this.rootNode.getObjects("Expressions", this.expressions)
+            if(!this.expressionRefs || (this.expressionRefs.length !== this.expressions.length)) {
+               this.expressions.forEach(function(itm, idx) {
+                  //gssDebug("new expression", itm)
+                  siht.expressionRefs[idx] = siht.rootNode.newObject("Expression", itm)
+                  //gssDebug(siht.expressionRefs[idx])
+               })
+            }
+         }
+         
+         //gssDebug("CSSDeclaration::build", this)
+         return this
+      }
+   })
+   /* width: $boxWidth;
+      position: <-absolute(center,center,.box);
+      left: <(Math.round(Math.random() * 200) + 200)px; */
+   germSheets.CSSDeclaration = function(args, rule) {
+      
+      this.process = function(callback) {
+         
+         var 
+         meth, mIdx = 0
+         r = this.gssValue, 
+         siht = this
+         
+         //gssDebug("starting to process", this)
+         
+         // ok..now do variables first
+         if(this.varRefs && this.varRefs.length) { 
+            this.varRefs.forEach(function(ref) {
+               r = ref.process(r)
+            })
+         }
+         
+         // now we do expressions without references
+         if(this.expressionRefs && this.expressionRefs.length) {
+            this.expressionRefs.forEach(function(ref) {
+               if(!ref.hasReferences) {
+                  r = ref.process(r)
+               }
+            })
+         }
+         
+         // now let's expand method calls
+         if(this.methodRefs && this.methodRefs.length) {
+            meth = this.methodRefs[mIdx]
+            
+            var 
+            methProcessor = function(processed) {
+               r = processed
+               //gssInfo("methProcessor: " + r)
+               meth = (siht.methodRefs.length > mIdx + 1) ? siht.methodRefs[++mIdx] : false
+               if(!meth) {
+                  //siht.output = siht.identifier + " { " + r.replace(/;/g, '; ') + " }\n"
+                  //callback(siht.output, siht.ruleIndex, siht)
+                  siht.finishProcessing(r, callback)
+               }else {
+                  meth.process(r, methProcessor)
+               }
+            }
+            meth.process(r, methProcessor)
+         }else {
+            this.finishProcessing(r, callback)
+         }
+         
+         /* continue in this.finishProcessing
+         */
+         
+      }
+      
+      this.finishProcessing = function(input, callback) {
+         // we're here because we've just finished fetching
+         // method outputs asynchronously..that leaves us with mixins
+         // and expressions that hold references..
+         var r = input
+         
+         if(this.mixinRefs && this.mixinRefs.length) {
+            this.mixinRefs.forEach(function(ref) {
+               r = ref.process(r)
+            })
+         }
+         
+         if(this.expressionRefs && this.expressionRefs.length) {
+            this.expressionRefs.forEach(function(ref) {
+               if(ref.hasReferences) {
+                  r = ref.process(r)
+               }
+            })
+         }
+         
+         this.output = (token.MIX === this.property) ? r + token.SPACE : this.property + ": " + r + token.SPACE
+         
+         //gssDebug("final output", this.output)
+         
+         callback(this.output)
+      }
+      
+      return cssDeclarationPrototype.__constructor.call(this, args, rule)
+   }
+   germSheets.CSSDeclaration.prototype = cssDeclarationPrototype
  
 /* css rules 
 -----------------------*/
@@ -678,235 +1055,125 @@
     * prototype for css rule representations
     * @private
     * @abstract
+    * @todo adapt to new parsing schema
    ---*/
-   var 
-   cssPrototype = collapse(gssPrototype, {
-      __constructor: function(args, node, ruleIndex) { 
-         this.gssText = Array.isArray(args) ? args.join("") : args
+   var // collapse(gssPrototype, {
+   cssPrototype = gssPrototype.slice({
+      __constructor: function(args, node) { 
+         
+         this.identifier = args.identifier || ""
+         this.childRules = args.childRules || []
+         this.declarations = args.declarations || []
+         this.gssText = Array.isArray(args.parsedTokens) ? args.parsedTokens.join("") : args.parsedTokens
+         this.cssText = args.cssText || ""
+         
+         this.styleDeclarations = {}
+         this._builtDeclarations = []
+         
+         //gssDebug("************************* new cssPrototype *******************", this, args)
+         
+         /* old schema */
+         //this.gssText = Array.isArray(args) ? args.join("") : args
          this.parentNode = node
-         this.ruleIndex = ruleIndex
-         return this.build()
+         this.ruleIndex = args.ruleIndex
+         return cssPrototype.build.call(this)
       },
-      process: function(vars, mixins, methods, expressions, callback) {},
-      /* ul { list-style-type: none; `.nested_rule { display: none; }` .childrule { color: $black;font-family: consolas,monospace; #second_level { color: #fff; }!! }! } 
-         
-         how to differentiate between style declarations and nested rules: 
-         - only execute if mode != 'nested'
-         - if the current token is either a . # or ` switch mode to 'nested' discard the backtick. proceed in nested mode.
-         - if its a letter and wasn't preceded by a . # or `, switch mode to 'quantum'
-         - store quantum tokens in a temp cache obj until you run into a opening curly brace { or a semicolon
-         - if its a ; prepend quantum tokens and store in cssText. switch mode to 'css'  
-         - if its a { create new child rule entry, prepend quantum tokens and switch mode to 'nested', discard the curly brace
-         - in both cases delete quantum tokens afterwards
-       */
-      containsExpressions: false,
       build: function() {
-         var 
-         tkn, ntkn, crIdx = 0, qntm = "", qntmMode = "?",
-         mode = "id", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u0020{2,}|\u21B5*/g, ''))
+         // now we just need to iterate over this.declarations, build them and get the required gssObject references
+         if(this._builtDeclarations && this._builtDeclarations.length) return this
+         if(!this.declarations || !this.declarations.length) return this
          
-         while(false !== (tkn = tknzr.nextToken())) {
-            ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
+         var i = 0, n = this.declarations.length
+         for(; i < n; i++) {
             
-            if(token.CURLY_OPEN === tkn) {
-               if("open" === mode) {
-                  mode = "css"
-                  gssInfo("switch mode to: " + mode + " at token: " + tkn)
-                  continue
-               }
-            }
-            
-            if(token.METH === tkn && token.PAR_OPEN === ntkn) {
-               //if("css" === mode) {
-                  this.containsExpressions = true
-                  gssInfo("contains expression: " + this.containsExpression)
-               //}
-            }
-            
-            if(token.CSSCLASS === tkn || token.CSSID === tkn || token.INLINE_THRU === tkn) {
-               if("css" === mode) {
-                  mode = "nested"
-                  this.childRules[crIdx] = ""
-                  // exclude first backtick
-                  if(token.INLINE_THRU !== tkn) {
-                     this.childRules[crIdx] += tkn
-                  }
-                  gssInfo("switch mode to: " + mode + " at token: " + tkn)
-                  continue
-               }
-            }
-            
-            if(token.CSSEL.test(tkn)) {
-               if("css" === mode) {
-                  mode = "quantum"
-                  qntm = ""
-                  gssInfo("switch mode to: " + mode + " at token: " + tkn)
-               }
-            }
-            
-            /*if(token.METH === tkn && token.METH2 === ntkn) 
-                  methods and mixins are already stored elsewhere..don't
-                  bother with them here */
-            
-            if("id" === mode) { 
-               if(token.CURLY_OPEN === ntkn) {
-                  mode = "open"
-                  gssInfo("switch mode to: " + mode + " at token: " + tkn)
-               }
-               this.identifier += tkn
-               continue
-            }
-            
-            if("quantum" === mode) {
-               
-               qntm += tkn
-               
-               if(token.END_VAR === tkn) {
-                  this.cssText += qntm.slice()
-                  qntm = ""
-                  mode = "css"
-                  gssInfo("switch mode to: " + mode + " at token: " + tkn)
-                  continue
-               }
-               if(token.CURLY_OPEN === tkn) {
-                  this.childRules[++crIdx] = qntm.slice()
-                  qntm = ""
-                  mode = "nested"
-                  gssInfo("switch mode to: " + mode + " at token: " + tkn)
-                  continue
-               }
-               
-            }
-            
-            if("nested" === mode) {
-               if(token.INLINE_THRU === tkn) {
-                  mode = "css"
-                  crIdx++
-                  gssInfo("switch mode to: " + mode + " at token: " + tkn)
-                  continue
-               }
-               if(token.CURLY_CLOSE === tkn && token.BANG === ntkn) {
-                  if(tknzr.index+1 < tknzr.tokens.length && token.BANG !== tknzr.tokens[tknzr.index+1]) {
-                     mode = "css"
-                     this.childRules[crIdx++] += tkn
-                     gssInfo("switch mode to: " + mode + " at token: " + tkn)
-                     continue
-                  }                  
-                  
-               }
-               if(token.BANG === tkn && token.BANG === ntkn) {
-                  // remove one ! so it all works out with multi nested rules
-                  tkn = ""
-                  //continue
-               }
-               
-               this.childRules[crIdx] += tkn
-               continue
-            }
-            
-            if("css" === mode) {
-               if(token.CURLY_CLOSE === tkn && token.BANG !== ntkn) {
-                  mode = "open"
-                  this.dirty = false
-                  gssInfo("switch mode to: " + mode + " at token: " + tkn)
-                  break
-               }
-               this.cssText += tkn
-               continue
-            }  
+            this._builtDeclarations[i] = new germSheets.CSSDeclaration(this.declarations[i], this)
+            this.styleDeclarations[this._builtDeclarations[i].property] = this._builtDeclarations[i]
          }
          
-         // TODO: adjust parsing so that the next lines become unnecessary
-         this.cssText = this.cssText.replace(/^[\u0020\u21B5]*|[\u21B5\u0020\!]*$/g, '')
-         this.identifier = this.identifier.replace(/^\u0020*|\u0020*$/g, '')
+         this.dirty = (this.declarations.length !== this._builtDeclarations.length)
          
-         return this //.buildChildRules()
-      },
-      buildChildRules: function(store) {
-         store = store || []
-         if(!this.childRules || !this.childRules.length) return store
-         
-         var 
-         store_i = store.length, 
-         i = 0, 
-         n = this.childRules.length
-         
-         for(; i<n; i++) {
-            store[store_i] = new germSheets.CSSRule(this.childRules[i], this.parentNode, this.ruleIndex + (n/10))
-            store[store_i].identifier = (".:" !== store[store_i].identifier.substring(0,2)) ? this.identifier + " " + store[store_i].identifier : this.identifier + store[store_i].identifier.substring(1)
-            if(0 < store[store_i].childRules.length) {
-               store[store_i].buildChildRules(store)
-            }
-         }
-         
-         return store
-      },
-      ruleIndex: Number.NaN,
-      childRules: []
+         return this
+      }
+      
    })
    
    germSheets.CSSRule = function(args, node, ruleIndex) {
-      this.childRules = []
-      this.ruleIndex = 0
-      this.containsExpressions = false
-      this.process = function(vars, mixins, methods, expressions, callback) {
+      
+      this.process = function(callback) {
+         if(!this._builtDeclarations || !this._builtDeclarations.length) {
+            gssError("something weird must have happened @CSSRule::build or CSSReference::build", this)
+            return callback("error@germSheets.CSSRule::build no declarations found")
+         }
+         /* iterate declarations and collect the processed output */
          var 
-         siht = this,
-         meth = null,
-         mIdx = 0,
-         r = this.cssText
+         decIdx = 0,
+         r = "", 
+         dec = this._builtDeclarations[decIdx],
+         siht = this
          
-         vars.forEach(function(obj) {
-            r = obj.process(r)
-         })
-         mixins.forEach(function(obj) {
-            r = obj.process(r)
-         })
-         // avoid excessive evals
-         if(this.containsExpressions) {
-            expressions.forEach(function(obj) {
-               r = obj.process(r)
-            })
+         var aggregator = function(input) {
+            r += input
+            dec = (siht._builtDeclarations.length > decIdx + 1) ? siht._builtDeclarations[++decIdx] : false
+            if(!dec) {
+               siht.output = siht.identifier + " { " + r + " }\n"
+               //gssDebug("CSSRule::output", siht.output)
+               callback(siht.output, r)
+            }else {
+               dec.process(aggregator)
+            }
          }
          
-         // processing methods works a little different
-         if(methods && methods.length) {
-            meth = methods[mIdx]
-            var 
-            methProcessor = function(processed) {
-               r = processed
-               //gssInfo("methProcessor: " + r)
-               meth = (methods.length > mIdx + 1) ? methods[++mIdx] : false
-               if(!meth) {
-                  siht.output = siht.identifier + " { " + r + " }\n"
-                  callback(siht.output, siht.ruleIndex, siht)
-               }else {
-                  meth.process(r, methProcessor)
+         // kick off subroutine
+         dec.process(aggregator)
+      }
+      
+      /** returns a CSS property value 
+          @method
+          @public */
+      this.getStyle = function(key) {
+         //gssDebug("getStyle", key)
+         if(key in this.styleDeclarations) {
+            var r = this.styleDeclarations[key]
+         }else {
+            for(var i=0; i < this._builtDeclarations.length; i++) {
+               if(key === this._builtDeclarations[i].property) {
+                  r = this._builtDeclarations[i]
                }
             }
-            meth.process(r, methProcessor)
-         }else {
-         
-            this.output = r
-            callback(r, this.ruleIndex, this)
          }
+         //gssDebug("getStyle", r)
+         return !r.cssText ? r.gssValue : r.cssText
       }
-      this.styleDeclarations = {}
+      
+      /** returns a CSSDeclaration instance 
+          @method
+          @public */
       this.getStyleDeclaration = function(key) {
          if(key in this.styleDeclarations) return this.styleDeclarations[key]
          
-         var siht = this, decl = "", rgx = new RegExp(regEsc(key) + ':[^;]*;', 'g')
-         this.cssText.replace(rgx, function(m) {
-            gssInfo("CSSRule::getStyleDeclaration\n" + m)
-            var tmp = m.split(":")
-            decl = tmp[1].substring(0, tmp[1].length-1)
-            siht.styleDeclarations[tmp[0]] = decl.replace(/^\u0020*|\u0020*$/, '')
-            return m
-         })
-         return decl
+         var dec, r = null, i = 0, n = this._builtDeclarations.length
+         
+         for(; i < n; i++) {
+            dec = this._builtDeclarations[i]
+            if(key === dec.property) {
+               r = dec
+               break
+            }
+         }
+         
+         return r
       }
       
-      return this.__constructor(args, node, ruleIndex)
+      /** get this._builtDeclarations
+       *  @method
+       *  @public
+       *  @returns {array}
+       */
+      this.getStyleDeclarations = function() {
+         return (this._builtDeclarations && this._builtDeclarations.length) ? this._builtDeclarations : null
+      }
+      
+      return cssPrototype.__constructor.call(this, args, node, ruleIndex)
    }
    germSheets.CSSRule.prototype = cssPrototype
    
@@ -920,204 +1187,148 @@
     */
    var 
    nodePrototype = {
-      thru: "",
-      tmp: "",
-      vars: [],
-      mixins: [],
-      methods: [],
-      skeletons: [],
-      cssRule: [],
-      compiledDOMNode: null,
-      output:"",
-      /*cssElement: [],
-      cssId: [],*/
-      processed: {
-         errors: 2,
-         skeletons: [],
-         cssRule: []/*,
-         cssId: [],
-         cssClass: []*/
-      },
-      process: function() {
-         //var processorName = "process_" + key
-         //return (processorName in this) ? this[processorName](callback) : gssFatal("no processor available for: " + key)
-      },
-      __constructor: function(args) {
+      __constructor: function(args, sourceCode) {
          this.thru = args.thru || ""
          this.vars = args.vars || []
          this.mixins = args.mixins || []
          this.methods = args.methods || []
          this.expressions = args.expressions || []
          this.skeletons = args.skeletons || []
-         this.cssRules = args.cssRule || []
+         /* new schema */
+         this.cssRuleData = args.cssRuleData || []
+         
+         this.sourceCode = sourceCode
+         
+         this.compiledDOMNode = null
+         
+         this.output = ""
+         this.processed = {
+            errors: 2,
+            skeletons: [],
+            cssRule: []
+         }
+         
+         this._builtVars = []
+         this._builtMixins = []
+         this._builtMethods = []
+         this._builtExpressions = []
+         this._builtSkeletons = []
+         this._builtCSSRules = []
+         this._queuedCSSRules = []
+         
+         this.gssVars = {}
+         this.gssMixins = {}
+         this.gssCSSRules = {}
+         
+         this.checkList = {
+            varsReady: false,
+            mixinsReady: false,
+            methodsReady: false,
+            expressionsReady: false,
+            skeletonsReady: false,
+            cssReady: false
+         }
          
          /* can't do it inside a for in since
             it has no way of keeping the proper execution order */
          
          this.thru = this.thru.replace(/^\s*|\s*$/gm, '')
+         this.buildVars() //, this.vars)
+         this.buildMixins()
+         this.buildMethods()
+         this.buildExpressions()
+         this.buildSkeletons() //, this.skeletons)
          
-         this.__build("vars") //, this.vars)
-         this.__build("mixins")//, this.mixins)
-         this.__build("methods")//, this.methods)
-         this.__build("expressions")//, this.expressions)
-         this.__build("skeletons")//, this.skeletons)
          
-         return this
-      },
-      __build: function(key) {
-         var builderName = "build_" + key
-         return (builderName in this) ? this[builderName]() : gssFatal("no build method found for: " + key)
-      },
-      checkList: {
-         varsReady: false,
-         mixinsReady: false,
-         methodsReady: false,
-         expressionsReady: false,
-         skeletonsReady: false,
-         cssReady: false
-      },
-      gssReady: function() {
-         return this.checkList.varsReady && this.checkList.mixinsReady && this.checkList.methodsReady && this.checkList.expressionsReady && this.checkList.skeletonsReady
-      },
-      check: function(key) {
-         this.checkList[key + "Ready"] = true
-         if("css" !== key) {
-            if(this.gssReady()) {
-               this.__build("cssRules")
-            }
-         }else {
-            gssLog("checklist complete")
-         }
          return this
       }
    }
    
    germSheets.GermNode = function(gssData, gssSourceCode) {
-      this.sourceCode = gssSourceCode || ""
-      this._builtVars = []
-      this.gssVars = {}
-      this.build_vars = function() {
+      
+      this.gssReady = function() {
+         return this.checkList.varsReady && this.checkList.mixinsReady && this.checkList.methodsReady && this.checkList.expressionsReady && this.checkList.skeletonsReady
+      }
+      this.check = function(key) {
+         this.checkList[key + "Ready"] = true
+         if("css" !== key) {
+            if(this.gssReady()) {
+               
+               this.buildCSSRules()
+            }
+         }else {
+            gssInfo("checklist complete")
+         }
+         return this
+      }
+      this.buildVars = function() {
          if(this._builtVars && this._builtVars.length) return this._builtVars;
          if(this.vars && this.vars.length) {
-            gssLog("start building variables")
+            gssInfo("start building variables")
             for(var i=0; i<this.vars.length; i++) {
                this._builtVars[i] = new germSheets.Variable(this.vars[i], this)
                this.gssVars[this._builtVars[i].identifier] = this._builtVars[i].cssText
-               gssLog(this._builtVars[i])
+               gssInfo(this._builtVars[i])
             }
          }         
          return this.check("vars")
       }
       
-      this._builtMixins = []
-      this.gssMixins = {} // contains identifiers as property fields..like gssMixins['roundCorners'] => 'border-radius: $radius'
-      this.build_mixins = function() {
+      this.buildMixins = function() {
          if(this._builtMixins && this._builtMixins.length) return this._builtMixins
          if(this.mixins && this.mixins.length) {
-            gssLog("start building mixins")
+            gssInfo("start building mixins")
             for(var i=0; i<this.mixins.length; i++) {
                this._builtMixins[i] = new germSheets.Mixin(this.mixins[i], this)
                this.gssMixins[this._builtMixins[i].identifier] = this._builtMixins[i].cssText
-               gssLog(this._builtMixins[i])
+               gssInfo(this._builtMixins[i])
             }
          }         
          return this.check("mixins")
       }
       
-      this._builtMethods = []
-      this.build_methods = function() {
+      this.buildMethods = function() {
          if(this._builtMethods && this._builtMethods.length) return this._builtMethods
          if(this.methods && this.methods.length) {
-            gssLog("start building methods")
+            gssInfo("start building methods")
             for(var i=0; i<this.methods.length; i++) {
                this._builtMethods[i] = new germSheets.Method(this.methods[i], this)
-               gssLog(this._builtMethods[i])
+               gssInfo(this._builtMethods[i])
             }
          }         
          return this.check("methods")
       }
       
-      this._builtExpressions = []
-      this.build_expressions = function() {
+      this.buildExpressions = function() {
          if(this._builtExpressions && this._builtExpressions.length) return this._builtExpressions
          if(this.expressions && this.expressions.length) {
-            gssLog("start building expressions")
+            gssInfo("start building expressions")
             for(var i=0; i < this.expressions.length; i++) {
                this._builtExpressions[i] = new germSheets.Expression(this.expressions[i], this)
-               gssLog(this._builtExpressions[i])
+               gssInfo(this._builtExpressions[i])
             }
          }         
          return this.check("expressions")
       }
       
-      this._builtSkeletons = []
-      this.build_skeletons = function() {
+      this.buildSkeletons = function() {
          if(this._builtSkeletons && this._builtSkeletons.length) return this._builtSkeletons
          if(this.skeletons && this.skeletons.length) {
-            gssLog("start building methods")
+            gssInfo("start building methods")
             for(var i=0; i<this.skeletons.length; i++) {
                this._builtSkeletons[i] = new germSheets.Skeleton(this.skeletons[i], this)
-               gssLog(this._builtSkeletons[i])
+               gssInfo(this._builtSkeletons[i])
             }
          }
          return this.check("skeletons")
       }
       
-      
-      this._builtCSSRules = []
-      this.gssCSSRules = {}
-      this.build_cssRules = function() {
-         for(var i=0; i<this.cssRules.length; i++) {
-            this._builtCSSRules[i] = new germSheets.CSSRule(this.cssRules[i], this, i)
+      this.buildCSSRules = function() {
+         for(var i=0; i<this.cssRuleData.length; i++) {
+            this._builtCSSRules[i] = new germSheets.CSSRule(this.cssRuleData[i], this)
             this.gssCSSRules[this._builtCSSRules[i].identifier] = this._builtCSSRules[i]
          }
-         
-         var childRules = []
-         this._builtCSSRules.forEach(function(obj) {
-            if(0 < obj.childRules.length) {
-              obj.buildChildRules(childRules)
-              
-            }
-         })
-         
-         
-         if(0 < childRules.length) {
-            for(i=0; i<childRules.length; i++) {
-               this._builtCSSRules.push(childRules[i])
-               this.gssCSSRules[childRules[i].identifier] = childRules[i]
-               
-            }
-         }
-         
-         
-         if(this.cssRules.length !== this._builtCSSRules.length) {
-            var obj, removed, prev = {}
-            for(i = 0; i<this._builtCSSRules.length; i++) {
-               obj = this._builtCSSRules[i]
-               
-               if(prev === obj || prev.identifier === obj.identifier) {
-                  removed = this._builtCSSRules.splice(i--, 1)
-                  gssLog("removed CSSRule: ", removed)
-                  prev = null
-                  removed = undefined
-                  continue
-               }
-               prev = obj
-            }
-         }
-         
-         // sort on ruleIndex so that nested rules appear beneath their parents
-         this._builtCSSRules.sort(function(a,b) {
-            var 
-            intA = parseInt(a.ruleIndex), intB = parseInt(b.ruleIndex),
-            decA = a.ruleIndex % 1, decB = b.ruleIndex % 1
-            if(intA === intB) {
-               return (decA < decB) ? -1 : 1
-            }
-            return intA < intB ? -1 : 1
-         })
-         
-         gssLog("builtCSSRules: ", this._builtCSSRules)
+         //gssDebug("builtCSSRules: ", this._builtCSSRules)
          
          return this.check("css")
       }
@@ -1135,6 +1346,7 @@
          this.expressions = undefined
          this.skeletons = undefined
          this.cssRules = undefined
+         this.cssRuleData = undefined
          
          if("immediately" === germSheets.config.destructionPolicy) {
             this.gssVars = undefined
@@ -1160,8 +1372,9 @@
          this.compiledDOMNode = outputNode
          
          gssInfo("*** finished compiling ***")
+         gssLog("germSheets completed in " + germSheets.stats.stopTimer())
          
-         this.completeCallback(output + "\n/*** code processed in " + germSheets.stats.stopTimer() + " ***/\n")
+         this.completeCallback(output + "\n/*<!--** code processed in " + germSheets.stats.executionTime + " **-->*/\n")
       }
       
       this.process = function() {
@@ -1169,10 +1382,16 @@
          this.processSkeletons(function(r) {
             siht.output = "/* Pass-Thru\n------------ */\n" + siht.thru + "\n" + r
             siht.processCSSRules(function(r2) {
-               siht.output += "\n/* CSS\n---------- */\n" + r2
-               siht.onComplete(siht.output)
+               if(!siht._queuedCSSRules || !siht._queuedCSSRules.length) {
+                  siht.output += "\n/* CSS\n---------- */\n" + r2
+                  siht.onComplete(siht.output)
+               }else {
+                  siht.processQueuedCSSRules(function(r3) {
+                     siht.output += "\n/* CSS\n---------- */\n" + r3
+                     siht.onComplete(siht.output)
+                  })
+               }
             })
-            // resume in onComplete
          })
       }
       
@@ -1187,87 +1406,160 @@
             skel.process(function(processed) {
                siht.processed.skeletons[completed] = processed
                if(siht._builtSkeletons.length <= ++completed) {
-                  gssInfo("processSkeletons complete callback:")
+                  gssInfo("done processing skeletons")
                   callback("\n/* Skeletons\n---------------------- */\n" + siht.processed.skeletons.join("\n"))
-                  
                }
             })
          }
-         
       }
       
       this.processCSSRules = function(callback) {
-         
          if(!this._builtCSSRules || !this._builtCSSRules.length) return callback("")
          
-         var cssRule, siht = this, completed = 0
-         gssLog("processing css rules")
+         var cssRule, siht = this, completed = 0, i = 0, n = this._builtCSSRules.length
          
-         for(var i=0; i<this._builtCSSRules.length; i++) {
+         for(; i < n; i++) {
             cssRule = this._builtCSSRules[i]
-            cssRule.process(this._builtVars, this._builtMixins, this._builtMethods, this._builtExpressions,
-               function(processed, idx) {
+            cssRule.process(function(processed) {
                   gssInfo("cssrule callback: " + completed)
-                  siht.processed.cssRule[completed] = processed // TODO fix ruleIndex
+                  siht.processed.cssRule[completed] = processed
+                  
                   if(siht._builtCSSRules.length <= ++completed) {
-                     gssInfo("process_cssRule done")
+                     gssInfo("done processing css rules")
                      callback("\n\n" + siht.processed.cssRule.join("\n\n") + "\n\n")
                   }
                }
             )
          }
+      }
+      
+      this.processQueuedCSSRules = function(callback) {
+         if(!this._queuedCSSRules || !this._queuedCSSRules.length) return callback("")
          
-      }
-      
-      this.addChildOf = function(parent, child) {
-         if("string" === typeof(child) || Array.isArray(child)) {
-            var 
-            cIdx = (parent.ruleIndex || this._builtCSSRules.length - 1) + 1, // parent.ruleIndex could be undefined...
-            childRule = new germSheets.CSSRule(child, this, cIdx)
-            
-            this._builtCSSRules.splice(cIdx, 0, childRule)
-            //this.processed.cssRule.splice(cIdx, 0, childRule.process(this._builtVars, this._builtMixins, this._builtMethods))
-            //gssLog("@GermNode::addChildOf " + parent.identifier + " at idx: " + cIdx)
-            //gssLog(this._builtCSSRules)
-            return childRule
-         }
-         return null
-      }
-      
-      this.addChildrenOf = function(parent, children) {
-         for(var i=0; i<children.length; i++) {
-            this.addChildOf(parent, children[i])
-         }
+         var rule, r = "", siht = this, completed = 0, i = 0, n = this._queuedCSSRules.length
          
-         //gssLog(this._builtCSSRules)
-         return this._builtCSSRules
+         for(; i < n; i++) {
+            rule = this._queuedCSSRules[i]
+            /* now we need to process the queued rule and check if a matching selector already exists
+               if there is one we append the processed declarations to that rule
+               if there is none we just append the new rule to this.processed.cssRule
+               return joined processed cssRules
+            */
+            rule.process(function(processed, decsOnly) {
+               //gssInfo("queued cssrule callback: " + completed)
+               
+               if(siht._queuedCSSRules.length <= ++completed) {
+                  if(false !== siht.selectorExists(rule.identifier)) {
+                     // get matching processed rule and append decsOnly
+                     var procRule = (function(key, decs) {
+                        var sel, rl, j = 0, k = siht.processed.cssRule.length
+                        for(; j < k; j++) {
+                           rl = siht.processed.cssRule[j]
+                           sel = rl.substring(0, rl.indexOf(' {'))
+                           if(key === sel) {
+                              rl = rl.replace(/(?:\u0020*\}\n*)$/g, function(m) {
+                                 return " " + decs + "}\n"
+                              })
+                              break
+                           }
+                        }
+                        
+                        //rl = rl.replace(/undefined\u0020*/g, '')
+                        siht.processed.cssRule[j] = rl
+                        //gssDebug("inner update processed rule", siht.processed.cssRule[j])
+                        return rl
+                        
+                     })(rule.identifier, decsOnly)
+                  }else {
+                     siht.processed.cssRule.push(processed)
+                  }
+                  gssInfo("done processing queued cssrules")
+                  callback("\n\n" + siht.processed.cssRule.join("\n\n") + "\n\n")
+               }
+            })
+         }
       }
       
-      /* merged into process_cssRule
-      this.process_cssId = function() {
-         for(var i=0; i<this.cssId.length; i++) {
-            var cssId = new germSheets.CSSId(this.cssId[i], this)
-            this.processed.cssId[i] = cssId.process(this._builtVars, this._builtMixins, this._builtMethods)
+      /** checks if an existing rules identifier matches key 
+       *  @returns {(number|boolean)} - the index of the existing rule on success, false on failure
+       */
+      this.selectorExists = function(key) {
+         if(key in this.gssCSSRules) return this._builtCSSRules.indexOf(this.gssCSSRules[key])
+         
+         var i = 0, n = this._builtCSSRules.length, r = false
+         for(; i < n; i++) {
+            if(key === this._builtCSSRules[i].identifier) {
+               r = i
+               break
+            }
          }
-         return "\n\n" + this.processed.cssId.join("\n\n") + "\n\n"
+         return r
       }
-      this.process_cssClass = function() {
-         for(var i=0; i<this.cssClass.length; i++) {
-            var cssClass = new germSheets.CSSClass(this.cssClass[i], this)
-            this.processed.cssClass[i] = cssClass.process(this._builtVars, this._builtMixins, this._builtMethods)
-         }
-         return "\n\n" + this.processed.cssClass.join("\n\n") + "\n\n"
-      }*/
       
-      // do i ever use that one?
+      
+      this.addCSSRule = function(rule) {
+         if(!rule) return null
+         
+         /* just try it like this first..could generate unpredictable output, 
+            since we're probably already inside the processCSSRules loop
+            if that doesn't work, just store added rules in a new list..say this._addedCSSRules
+            or something..and just process those after the main routine finishes
+         */
+         //gssDebug("GermNode::addCSSRule at", rule, this._builtCSSRules.length)
+         
+         this._queuedCSSRules[this._queuedCSSRules.length] = rule
+         
+         return rule
+      }
+      
+      /** 
+            factory function for creating gssObjects from string
+            @method
+            @public
+            @param {string} key - the name of the constructor function to call
+            @param {string} args - arguments for the constructor function referenced by `key`
+      */
+      this.newObject = function(key, args) {
+         if(!(key in germSheets)) return null
+         
+         return new germSheets[key](args, this)
+      }
+      
+      /**
+       * @todo add routine without using a referenceList
+       */
+      this.getObjects = function(key, referenceList) {
+         var 
+         r = [], refValue = "",
+         trunk = this["_built" + key],
+         j = 0, k = trunk.length,
+         i = 0, n = referenceList.length
+         
+         gssLog("GermNode::getObjects", "key: " + key + " trunk: ", trunk)
+         
+         for(i = 0; i < n; i++) {
+            refValue = Array.isArray(referenceList[i]) ? referenceList[i].join("").replace(/(?:\(.*\))*;$/g, '') : referenceList[i].replace(/(?:\(.*\))*;$/g, '')
+            for(j = 0; j < k; j++) {
+               gssInfo("matching: " + refValue, "against: " + trunk[j].getFullIdentifier(), "from: _built" + key)
+               if(trunk[j].getFullIdentifier() === refValue) {
+                  r[r.length] = trunk[j]
+                  gssInfo("matched: ", trunk[j])
+                  break
+               }
+            }
+         }
+         return r
+      }
+      
       this.getValue = function(key) {
          if(token.VAR === key.charAt(0)) {
             key = key.substring(1)
          }
          return (key in this.gssVars) ? this.gssVars[key] : (key in this.gssMixins) ? this.gssMixins[key] : null
       }
+      
       this.getCSSRule = function(key) {
-         //gssLog("getCSSRule: " + key)
+         //gssInfo("getCSSRule: " + key)
          
          if(key in this.gssCSSRules) { 
             return this.gssCSSRules[key] 
@@ -1296,14 +1588,96 @@
          return r
       }
       
-      return this.__constructor(gssData)
+      return nodePrototype.__constructor.call(this, gssData, gssSourceCode)
    }
    germSheets.GermNode.prototype = nodePrototype
    
+   /**
+    * used to serialize style nodes, if neccessary 
+    * @private
+    */
    var 
    xmlser = new XMLSerializer()
    germSheets.serialize = function(node) {
       return xmlser.serializeToString(node)
+   }
+   
+   
+   /**
+    * returns a string representation of a given hash, as specified by the expander parameter
+    * @public
+    * @method
+    * @param {object} obj - a hash that should be turned into a string
+    * @param {string} expander - the name of the expander function to use. defaults to CSS (kinda like JSON, but with unquoted, de-pascalcased propertynames)
+    * @param {string} expander - optional parameter specifying the char to use as delimiter in the returned string. Defaults to ';'
+    * @returns {string}
+    */
+   germSheets.expandObject = function(obj, expander, delimiter) {
+      if(!obj) return ""
+      expander = expander || "CSS"
+      delimiter = delimiter || ","
+      
+      var p, cssp, cssv, r = ""
+      
+      if("CSS" === expander) {
+         //r = JSON.stringify(obj).replace(/^(?:\{|\[)*|(?:\}|\])*$/g, '')
+         for(p in obj) {
+            cssp = p.replace(/[A-Z]/g, function(m) {
+               return "-" + m.toLowerCase()
+            })
+            cssv = obj[p]
+            r += cssp + ": " + cssv + token.END_VAR + delimiter
+         }
+         gssDebug("germSheets::expandObject", r)
+      }/*else {
+         // TODO: implement xml / query string expander
+      }*/
+      
+      return r.substring(0, r.length-1)
+   }
+   
+   /**
+    * adds a GermNode to the global list of nodes
+    * @public
+    * @method
+    * @param {germSheets.GermNode} germNode - the node to add
+    * @returns {void}
+    */
+   germSheets.addNode = function(germNode) {
+      if(!germSheets.nodes || !germSheets.nodes.length) {
+         germSheets.nodes = []
+      }
+      
+      germSheets.nodes.push(germNode)
+   }
+   
+   
+   /**
+    * creates a new germSheets.CSSRule and appends it to the current node
+    * @public
+    * @method
+    * @param {string} selector - the 'identifier' field of the new rule
+    * @param {object} declarations - a hash of style declarations for the new rule
+    * @returns {germSheets.CSSRule}
+    */
+   germSheets.addNewCSSRule = function(selector, declarations) {
+      // concat everything into string
+      var 
+      ruleCSSText = germSheets.expandObject(declarations),
+      germNode = germSheets.nodes[germSheets.nodes.length - 1],
+      decArray = ruleCSSText.split(","),
+      ruleGSSText = selector + " { " + ruleCSSText + " }",
+      cssRule = new germSheets.CSSRule({
+         identifier: selector,
+         declarations: decArray,
+         childRules: null,
+         parsedTokens: ruleGSSText,
+         cssText: ruleCSSText
+      }, germNode)
+      
+      //gssDebug("germSheets::addNewCSSRule", cssRule)
+      
+      return germNode.addCSSRule(cssRule)
    }
    
    /**
@@ -1313,7 +1687,8 @@
     * @returns {void}
     */
    germSheets.run = function(gssNode, isDOMNode) {
-      var 
+      var
+      compiler,
       gssCode = isDOMNode ? germSheets.serialize(gssNode) : gssNode, // regex replaces opening style tags, optional xml comment tokens and <?gss processing instructions
       parser = new germSheets.Parser(gssCode.replace(/^\s*(?:<style[^>]*>|[\r\n\s<\-!\[CDAT\?gss])*|(?:[\r\n\s\?>\-\]]|<\/style>)*$/mg, ""))
       
@@ -1323,18 +1698,23 @@
       
       compiler = new germSheets.Compiler(parser.unstore(), gssCode)
       
+      germSheets.addNode(compiler.germNode)
+      
       isDOMNode && gssNode.remove()
       
       gssInfo("** start compiling **")
       compiler.compile(function(compiledCss) {
          gssInfo("callback@germSheets::run")
-         gssLog(compiledCss)
+         
+         gssLog("compiler output: ", compiledCss)
+         
+         if('__gssdebug' in window) window.__gssdebug(compiledCss)
          
          var excessHeadNodes = document.querySelectorAll('style[type="text/x-gss"]')
          
          foreach(excessHeadNodes, function(itm) {
             itm.remove()
-            gssLog("removed DOM node: ", itm)
+            gssInfo("removed DOM node: ", itm)
          })
          
       })
@@ -1342,11 +1722,18 @@
    }
    
    /**
-    * @property {function} init - gathers the source and kicks off the parser
+    * @method
+    * @property {function} source - gathers the source and kicks off the parser
     * @param {object} src - either a dom node reference, a serialized dom node or a url to fetch the source from
     * @returns {void}
     */
-   germSheets.init = function(src) {
+   germSheets.source = function(src) {
+      
+      if(!germSheets.config) {
+         // get default config
+         germSheets(null)
+         gssLog(germSheets.config)
+      }
       
       germSheets.stats.startTimer()
       
@@ -1357,17 +1744,14 @@
             // serialized node or url?
             if(/^(?:<style type="text\/x-gss">|(?:<!--)?<\?gss)/im.test(node)) {
                // looks like a node string or code wrapped in <?gss
-               gssInfo("started running germSheets " + new Date().toISOString())
                germSheets.run(node, false)
             }else if(/\.gss$/i.test(node)){
                // looks like a .gss file extension..so it might be a url
                germSheets.httpRequest(node, function(response) {
-                  gssInfo("started running germSheets " + new Date().toISOString() + "\nsource file: " + node)
                   germSheets.run(response, false)
                })
             }
          }else {
-            gssInfo("started running germSheets " + new Date().toISOString())
             germSheets.run(node, true)
          }
       })

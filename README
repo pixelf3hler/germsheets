@@ -31,7 +31,7 @@ $green = #7eff48; // store stuff in variables
 }
 
 .inline-expression {
-   width: <(window.innerWidth)px; // jup..inline javascript expressions..why doesn't css have those anyway?
+   width: <(window.innerWidth)px; // jup..inline javascript expressions..why doesn't css have those anyway? i know they exist somewhere, but aren't really useable
 }
 
 ul {

@@ -106,10 +106,14 @@
          callback(germSheets.fn[fnName])
          return
       }
-      if(germSheets.ajaxConfig.useXHR) {
+      if(germSheets.config.ajax.useXHR) {
          var // using xhr:
-         url = germSheets.ajaxConfig.baseUrl + "core/methods/" + fnName.toLowerCase() + ".js",
+         url = germSheets.config.ajax.baseUrl + "core/methods/" + fnName.toLowerCase() + ".js",
          processingInstruction = { eval: true }, rawInstructions = []
+         
+         if("never" === germSheets.config.cachePolicy) {
+            url += '?_=' + new Date().getTime()
+         }
          
          try { 
             http.get(url, function(response) {
@@ -135,7 +139,7 @@
                         return !isNaN(m2.charCodeAt(0)) ? '"' + m2 + '"' : ""
                      }).split(" ").slice(1, -1)
                      
-                     gssLog("rawInstructions: " + rawInstructions)
+                     gssInfo("rawInstructions: " + rawInstructions)
                      
                      return m
                   })
@@ -148,11 +152,11 @@
                   }
                }// ? !!(parseInt(response.substr(8, 1))) : true
                
-               gssLog("creating function " + fnName + " using: " + (processingInstruction.eval ? "eval()" : "Function()"), response)
+               gssInfo("creating function " + fnName + " using: " + (processingInstruction.eval ? "eval()" : "Function()"), response)
                
                germSheets.fn[fnName] = processingInstruction.eval ? eval("(" + response + ")") : Function('var _here_ = "' + fnName + '"\n\n' + response) //
                callback(germSheets.fn[fnName])
-               //gssLog(germSheets.fn[fnName]())
+               //gssInfo(germSheets.fn[fnName]())
             })
          }catch(err) {
             gssError(err)
@@ -168,7 +172,7 @@
             callback(germSheets.fn[fnName])
          }
          
-         gssLog("starting new worker")
+         gssInfo("starting new worker")
          worker.postMessage(url)
       }
    }
