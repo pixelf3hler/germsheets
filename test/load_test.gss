@@ -1,6 +1,12 @@
 <?gss
+   
+   $storedExpression = <(1024 <= window.innerWidth ? "bold" : "normal");
+   $random_color = <-randomColor();
    $green = #7eef48;
    $black = #000000;
+   /* iteratorblock type variables can hold several style declarations
+      if neccessary, use the inline-thru mode, triggered by the backtick operator,
+      to escape special chars..in this case the semicolon ; */
    $iteratorBlock = `box-shadow: 0px 8px [i]px #000000; overflow: hidden`;
    
    ~roundCorners($radius) {
@@ -12,32 +18,62 @@
    p { color: #333; }
    %%
    
-   //line comment test
-   
-   //+unroll(test,class,2,6,$iteratorBlock);
-   
-   +paragraphs(16,32,"Source Code Pro");
+   // iterator blocks are supposed to be passed to expander skeletons, like +unroll
+   // unroll takes 4 regular arguments and 1 iteratorblock to unroll css rules with the style declarations stored in the iteratorblock
+   // 1st is the identifier, 2nd the selectortype (class, id, element) 3rd is the startvalue for the iteration and 4th the endvalue
+   // the [i] placeholders inside the iteratorblock value are replaced with the current iterator..should also work when passed by value
+   //+complex(test,class,2,6,`border-radius: [(0 === i%2) ? i : i+2]px;`);
+   +unroll(test,class,2,6,`border-radius: [i]px; border: [i]px solid #ffa9ff;`);
+   //+unroll(shdw,class,2,6,$iteratorBlock)
+   //+paragraphs(16,32,"Source Code Pro");
    
    .box {
       width: 400px;
-      position: absolute;
+      position: <-absolute(center,center,.box);
       left: <(Math.round(Math.random() * 200) + 200)px;
       height: <(200 * 2)px;
       
    }
    
+   .full-size {
+      width: <(window.innerWidth)px;
+      height: <(window.innerHeight)px;
+      padding: 0;
+      margin: 0;
+   }
+   
+   /*.wrapped-expression {
+      as expected..the next line breaks everything..i guess i'll have to handle css functions differently
+      color: rgb(<([Math.round(Math.random()*255),Math.round(Math.random()*255),Math.round(Math.random()*255)].join(',')));
+   }*/
+   
    #green_border {
       
       border: solid 1px $green;
       font-size: 12px;
-      height: <(.box[width] / 2)px;// new element: inline expressions <(...) the css property accessor uses the syntax selector[styleDeclaration]
+      // new element: inline expressions <(...) the css property accessor uses the syntax selector[property]
+      // note that this references the value defined in gss (in this example 400px), not neccessarily the actual width of a .box element inside the document
+      height: <(.box[width] / 2)px;
       width: 220px;
       line-height: <-recommendedLineHeight(12,220);
    }
    
    .light_green {
-      background-color: <-randomColor();
+      background-color: $random_color;
       ~roundCorners(6px);
+   }
+   
+   a { 
+      text-decoration: none;
+      font-style: normal;
+      font-weight: $storedExpression;
+      .:hover {
+         font-style: italic;
+      }!
+      .:visited {
+         font-style: normal;
+         text-decoration: underline;
+      }!
    }
    
    ul {

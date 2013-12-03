@@ -154,7 +154,7 @@
                
                gssInfo("creating function " + fnName + " using: " + (processingInstruction.eval ? "eval()" : "Function()"), response)
                
-               germSheets.fn[fnName] = processingInstruction.eval ? eval("(" + response + ")") : Function('var _here_ = "' + fnName + '"\n\n' + response) //
+               germSheets.fn[fnName] = processingInstruction.eval ? eval("(" + response + ")") : Function("var _here_ = '" + fnName + "'\n\n" + response) //
                callback(germSheets.fn[fnName])
                //gssInfo(germSheets.fn[fnName]())
             })
@@ -167,8 +167,8 @@
          url = "methods/" + fnName.toLowerCase() + ".js"
          
          worker.onmessage = function(e) {
-            worker.terminate()
-            germSheets.fn[fnName] =  Function('var _name = "' + fnName + '"\n\n' + response) //eval("(" + e.data + ")") //Function(e.data)
+            this.terminate()
+            germSheets.fn[fnName] =  Function("var _here_ = '" + fnName + "'\n\n" + response) //eval("(" + e.data + ")") //Function(e.data)
             callback(germSheets.fn[fnName])
          }
          
