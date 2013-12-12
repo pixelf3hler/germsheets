@@ -1,18 +1,12 @@
-//goog.provide('germsheets.compiler')
-
-//goog.require('germsheets.namespace')
-//goog.require('germsheets.http')
-//goog.require('germsheets.parser')
-
 /** 
  *  @file creates the final output
- *  @version 1.0.0
+ *  @version 1.0.1
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
- *  @author Max Burow <max@pixelf3hler.de>
+ *  @author <max@pixelf3hler.de>
  *  @license license.txt
  *  The MIT License
  */
-(function(window, germSheets, undefined) {
+(function(window, undefined) {
    
    /*
       gssData structure:
@@ -26,7 +20,7 @@
          cssRuleData: []   => css rule constructor objects
       }
    */
-   
+   var germSheets = window.germSheets || {}
    germSheets.Compiler = function(gssData, gssSourceCode) {
       this.rawData = gssData
       
@@ -38,7 +32,7 @@
          
          this.germNode.setCompleteCallback(function(processed) {
             siht.output += processed
-            gssInfo("callback@compiler")
+            germSheets.config.enableLogging && console.log("callback@compiler")
             callback && callback(siht.output + "\n\n/* *** check out germsheets at http://gs.pixelf3hler.de/ *** */")
          })
          //this.germNode.executeMethods()
@@ -52,4 +46,4 @@
       }
    }
    
-})(window, window.germSheets)
+})(window)

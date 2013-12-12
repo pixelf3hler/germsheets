@@ -1,19 +1,15 @@
-//goog.provide('germSheets.Parser')
-
-//goog.require('germSheets')
-//goog.require('germSheets.httpRequest')
-
 /** 
  *  @file main parsing routine
  *  @version 1.0.1
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
- *  @author Max Burow <max@pixelf3hler.de>
+ *  @author <max@pixelf3hler.de>
  *  @license license.txt
  *  The MIT License
  */
-(function(window, document, germSheets, undefined) {
+(function(window, undefined) {
 
 var
+germSheets = window.germSheets || {},
 token = germSheets.token
 
 /** @deprecated */
@@ -52,9 +48,9 @@ germSheets.Tokenizer = function(str) {
       s = s.replace(/^\u0020*|\u0020*$/mg, "")
       // replace linebreaks with a visible glyph
       // for easier debugging
-      gssInfo("Tokens after whitespace removal:\n" + s)
+      germSheets.config.enableLogging && console.log("Tokens after whitespace removal:\n" + s)
       s = s.replace(/\n|\r\n|\r/g, token.RETURN)
-      gssInfo("Tokens after newline replace:\n" + s)
+      germSheets.config.enableLogging && console.log("Tokens after newline replace:\n" + s)
       
       return s.split("")
    })(str)
@@ -153,14 +149,14 @@ germSheets.Parser.prototype.parseThru = function() {
 */
 germSheets.Parser.prototype.parseComments = function() {
    var tkn, ntkn, endCommentBlock = false
-   gssInfo("start removing comments")
+   germSheets.config.enableLogging && console.log("start removing comments")
    while(false !== (tkn = this.tknzr.nextToken())) {
       ntkn = (this.tknzr.index < this.tknzr.tokens.length) ? this.tknzr.tokens[this.tknzr.index] : token.NUL
       
       if(token.COML === tkn && token.COML2 === ntkn) {
          if(this.modes.commentline !== this.mode) {
             this.mode = this.modes.commentline
-            gssInfo("switch mode to: commentline")
+            germSheets.config.enableLogging && console.log("switch mode to: commentline")
          } 
          
       }
@@ -168,7 +164,7 @@ germSheets.Parser.prototype.parseComments = function() {
       if(token.COMB === tkn && token.COMB2 === ntkn) {
          if(this.modes.commentblock !== this.mode) {
             this.mode = this.modes.commentblock
-            gssInfo("switch mode to: commentblock")
+            germSheets.config.enableLogging && console.log("switch mode to: commentblock")
          }
          
       }
@@ -177,7 +173,7 @@ germSheets.Parser.prototype.parseComments = function() {
          if(token.RETURN === tkn) {
             this.mode = 0
          }
-         ////gssInfo("marked line comment token: " + tkn)
+         ////germSheets.config.enableLogging && console.log("marked line comment token: " + tkn)
          this.tknzr.markTokenForRemoval()
          continue
       }
@@ -187,7 +183,7 @@ germSheets.Parser.prototype.parseComments = function() {
          if(endCommentBlock && token.COMB === tkn) { 
             endCommentBlock = false
             this.mode = 0
-            gssInfo("switch mode to open")
+            germSheets.config.enableLogging && console.log("switch mode to open")
             
          }
          
@@ -195,7 +191,7 @@ germSheets.Parser.prototype.parseComments = function() {
             endCommentBlock = true
          }
          
-         //gssInfo("marked commentblock token: " + tkn)
+         //germSheets.config.enableLogging && console.log("marked commentblock token: " + tkn)
          this.tknzr.markTokenForRemoval()
          //continue
       }
@@ -204,7 +200,7 @@ germSheets.Parser.prototype.parseComments = function() {
    this.tknzr.reset()
    this.store.tmp = this.tknzr.tokens.join("")
    
-   //gssInfo(this.store.tmp)
+   //germSheets.config.enableLogging && console.log(this.store.tmp)
    
    return ++this.pass
 }
@@ -214,7 +210,7 @@ germSheets.Parser.prototype.parseComments = function() {
 germSheets.Parser.prototype.parseGSS = function() {
    var tkn, ntkn, varIdx = 0, mixIdx = 0, skelIdx = 0,
        cssClsIdx = 0, cssIdIdx = 0, cssElIdx = 0, inlineThruMode = false
-   gssInfo("start parsing gss")
+   germSheets.config.enableLogging && console.log("start parsing gss")
    while(false !== (tkn = this.tknzr.nextToken())) {
       ntkn = (this.tknzr.index < this.tknzr.tokens.length) ? this.tknzr.tokens[this.tknzr.index] : token.NUL
       
@@ -226,7 +222,7 @@ germSheets.Parser.prototype.parseGSS = function() {
       if(token.CSSCLASS === tkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.cssclass
-            gssInfo("switch mode to: cssclass")
+            germSheets.config.enableLogging && console.log("switch mode to: cssclass")
             this.store.cssClass[cssClsIdx] = []
          }
       }
@@ -234,7 +230,7 @@ germSheets.Parser.prototype.parseGSS = function() {
       if(token.CSSID === tkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.cssid
-            gssInfo("switch mode to: cssid")
+            germSheets.config.enableLogging && console.log("switch mode to: cssid")
             this.store.cssId[cssIdIdx] = []
          }
       }
@@ -242,7 +238,7 @@ germSheets.Parser.prototype.parseGSS = function() {
       if(token.CSSEL.test(tkn)) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.cssel
-            gssInfo("switch mode to: cssel")
+            germSheets.config.enableLogging && console.log("switch mode to: cssel")
             this.store.cssElement[cssElIdx] = []
          }
       }
@@ -257,7 +253,7 @@ germSheets.Parser.prototype.parseGSS = function() {
       if(token.VAR === tkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.variable
-            gssInfo("switch mode to: variable")
+            germSheets.config.enableLogging && console.log("switch mode to: variable")
             this.store.vars[varIdx] = []
          }
       }
@@ -265,7 +261,7 @@ germSheets.Parser.prototype.parseGSS = function() {
       if(token.MIX === tkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.mixin
-            gssInfo("switch mode to: mixin")
+            germSheets.config.enableLogging && console.log("switch mode to: mixin")
             this.store.mixins[mixIdx] = []
          }
       }
@@ -273,7 +269,7 @@ germSheets.Parser.prototype.parseGSS = function() {
       if(token.SKEL === tkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.skeleton
-            gssInfo("switch mode to: skeleton")
+            germSheets.config.enableLogging && console.log("switch mode to: skeleton")
             this.store.skeletons[skelIdx] = []
          }
       }
@@ -286,7 +282,7 @@ germSheets.Parser.prototype.parseGSS = function() {
             if(token.END_CSS === tkn && token.BANG !== ntkn) {
                this.mode = 0
                cssClsIdx += 1
-               gssInfo("switch mode to: open")
+               germSheets.config.enableLogging && console.log("switch mode to: open")
             }
          }
          continue
@@ -299,8 +295,9 @@ germSheets.Parser.prototype.parseGSS = function() {
          if(!inlineThruMode) {
             if(token.END_CSS === tkn && token.BANG !== ntkn) {
                this.mode = 0
+               germSheets.config.enableLogging && console.log("finished parsing: %s", this.store.cssId[cssIdIdx].join(""))
                cssIdIdx += 1
-               gssInfo("switch mode to: open")
+               germSheets.config.enableLogging && console.log("switch mode to: open")
             }
          }
          continue
@@ -314,7 +311,7 @@ germSheets.Parser.prototype.parseGSS = function() {
             if(token.END_CSS === tkn && token.BANG !== ntkn) {
                this.mode = 0
                cssElIdx += 1
-               gssInfo("switch mode to: open")
+               germSheets.config.enableLogging && console.log("switch mode to: open")
             }
          }
          continue
@@ -328,7 +325,7 @@ germSheets.Parser.prototype.parseGSS = function() {
             if(token.END_VAR === tkn) {
                this.mode = 0
                varIdx += 1
-               gssInfo("switch mode to: open")
+               germSheets.config.enableLogging && console.log("switch mode to: open")
             }
          }
          
@@ -344,7 +341,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          if(token.END_MIX_DECL === tkn) {
             this.mode = 0
             mixIdx += 1
-            gssInfo("switch mode to: open")
+            germSheets.config.enableLogging && console.log("switch mode to: open")
          }
          
          this.tknzr.markTokenForRemoval()
@@ -360,7 +357,7 @@ germSheets.Parser.prototype.parseGSS = function() {
             if(token.END_SKEL === tkn) {
                this.mode = 0
                skelIdx += 1
-               gssInfo("switch mode to: open")
+               germSheets.config.enableLogging && console.log("switch mode to: open")
             }
          }
          
@@ -379,13 +376,41 @@ germSheets.Parser.prototype.parseGSS = function() {
    
    this.tknzr.tokens = this.store.tmp.split('')
    
-   //gssInfo(this.store.tmp)
+   //germSheets.config.enableLogging && console.log(this.store.tmp)
    
    varIdx = mixIdx = skelIdx = cssClsIdx = cssIdIdx = cssElIdx = inlineThruMode = undefined
    
    return ++this.pass
 }
 
+
+var // internal
+_copyChildRulesToRef = function(childrules, ref) {
+   var i = 0, n = childrules.length
+   for(; i < n; i++) {
+      var cr = childrules[i]
+      germSheets.config.enableLogging && console.log("_copyChildRulesToRef: %s", cr)
+      if(cr.childRules && cr.childRules.length) {
+         _copyChildRulesToRef(cr.childRules, ref)
+      }else {
+         ref.push(cr)
+      }
+   }
+},
+_buildChildRulesToRef = function(childrules, parent, ref) {
+   var i = 0, n = childrules.length
+   for(; i < n; i++) {
+      var 
+      childRuleIdx = (0 === parent.ruleIndex - parseInt(parent.ruleIndex)) ? parseFloat(parent.ruleIndex + "." + (1 + i)) : parseFloat(parent.ruleIndex + ((1+i) / 10)),
+      childRule = this._parseDeclarations(childrules[i], childRuleIdx)
+      germSheets.config.enableLogging && console.log("childRuleIdx@_buildChildRulesToRef: " + childRuleIdx)
+      childRule.identifier = (".:" === childRule.identifier.substr(0,2)) ? parent.identifier + childRule.identifier.substring(1) : parent.identifier + " " + childRule.identifier
+      ref.push(childRule) //[this.store.cssRules.length] = childRule
+      if(childRule.childRules && childRule.childRules.length) {
+         _buildChildRulesToRef.call(this, childRule.childRules, childRule, ref)
+      }
+   }
+}
 
 germSheets.Parser.prototype.parseDeclarations = function() {
    var 
@@ -396,41 +421,45 @@ germSheets.Parser.prototype.parseDeclarations = function() {
    n = cssrules.length
    
    var childRules = []
-   for(i=0; i < n; i++) {
-      var rlData = this.parseDeclarations.subroutine.call(this, cssrules[i], i)
+   for(; i < n; i++) {
+      var rlData = this._parseDeclarations(cssrules[i], i)
       this.store.cssRules[i] = rlData
-      if(0 < rlData.childRules.length) {
-         childRules[i] = rlData.childRules
+      germSheets.config.enableLogging && console.log("rlData@parseDeclarations: %o", rlData)
+      if(rlData.childRules && rlData.childRules.length) {
+         //childRules[i] = rlData.childRules
+         childRules[i] = []
+         _copyChildRulesToRef(rlData.childRules, childRules[i])
       }
    }
    
    if(childRules && childRules.length) {
-      i = 0
+      germSheets.config.enableLogging && console.log("childRules: %o", childRules)
       n = childRules.length
-      var 
-      k, j, parentRule
+      var k, j, parentRule
       
-      for(; i < n; i++) {
+      for(i = 0; i < n; i++) {
          if(!childRules[i] || (undefined === childRules[i])) continue
          
-         j = 0
          k = childRules[i].length
          parentRule = this.store.cssRules[i]
          
-         for(; j < k; j++) {
+         _buildChildRulesToRef.call(this, childRules[i], parentRule, this.store.cssRules)
+         
+         /*for(j = 0; j < k; j++) {
             var 
             childRuleIdx = parseFloat(parentRule.ruleIndex + "." + (1 + j)),
-            childRule = this.parseDeclarations.subroutine.call(this, childRules[i][j], childRuleIdx)
+            childRule = this._parseDeclarations(childRules[i][j], childRuleIdx)
             childRule.identifier = (".:" === childRule.identifier.substr(0,2)) ? parentRule.identifier + childRule.identifier.substring(1) : parentRule.identifier + " " + childRule.identifier
             this.store.cssRules.push(childRule) //[this.store.cssRules.length] = childRule
-         }
+            germSheets.config.enableLogging && console.log("storing childRule: %o", childRule)
+         }*/
       }
       // sort on ruleIndex
       this.store.cssRules.sort(function(a,b) {
          var 
          aInt = parseInt(a.ruleIndex), bInt = parseInt(b.ruleIndex),
          aDec = a.ruleIndex % 1, bDec = b.ruleIndex % 1
-         ////gssDebug(a.ruleIndex, aInt, aDec, b.ruleIndex, bInt, bDec)
+         ////germSheets.config.enableLogging && console.log(a.ruleIndex, aInt, aDec, b.ruleIndex, bInt, bDec)
          if(aInt === bInt) {
             return aDec < bDec ? -1 : 1
          }
@@ -444,13 +473,13 @@ germSheets.Parser.prototype.parseDeclarations = function() {
    // time to extract single declarations (using a regexp...i really like using regexps)
    
    this.store.cssRules.forEach(function(itm) {
-      //gssDebug("before cleanup", itm.cssText)
+      //germSheets.config.enableLogging && console.log("before cleanup", itm.cssText)
       // moved cleanup to subroutine
       //itm.cssText = itm.cssText.replace(/^[\u0020\u21B5]*|[\u21B5!]*|[\u21B5\u0020\!]*$/g, '')
       //itm.identifier = itm.identifier.replace(/^\u0020*|\u0020*$/g, '')
-      //gssDebug("after cleanup", itm.cssText)
+      //germSheets.config.enableLogging && console.log("after cleanup", itm.cssText)
       itm.cssText.replace(/[^;]*;/g, function(m) {
-         //gssDebug("declaration: ", m)
+         //germSheets.config.enableLogging && console.log("declaration: ", m)
          itm.declarations.push(m)
       })
    })
@@ -458,12 +487,11 @@ germSheets.Parser.prototype.parseDeclarations = function() {
    return ++this.pass
 }
 
-germSheets.Parser.prototype.parseDeclarations.subroutine = function(tokens, ruleIdx) {
-   
+germSheets.Parser.prototype._parseDeclarations = function(tokens, ruleIdx) {
    this.tknzr.tokens = tokens
    this.mode = this.modes.open
-   var 
-   mode = "id", crIdx = 0, qntm = "",
+   
+   var mode = "id", crIdx = 0, qntm = "",
    ruleData = { declarations: [], cssText: "", parsedTokens: tokens, identifier: "", childRules: [], ruleIndex: ruleIdx }
    
    while(false !== (tkn = this.tknzr.nextToken())) {
@@ -472,7 +500,7 @@ germSheets.Parser.prototype.parseDeclarations.subroutine = function(tokens, rule
       if(token.CURLY_OPEN === tkn) {
          if("open" === mode) {
             mode = "css"
-            gssInfo("switch mode to: " + mode + " at token: " + tkn)
+            germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             continue
          }
       }
@@ -485,23 +513,23 @@ germSheets.Parser.prototype.parseDeclarations.subroutine = function(tokens, rule
             if(token.INLINE_THRU !== tkn) {
                ruleData.childRules[crIdx] += tkn
             }
-            gssInfo("switch mode to: " + mode + " at token: " + tkn)
+            germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             continue
          }
       }
-      
+      // token.CSSEL is a regexp
       if(token.CSSEL.test(tkn)) {
          if("css" === mode) {
             mode = "quantum"
             qntm = ""
-            gssInfo("switch mode to: " + mode + " at token: " + tkn)
+            germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
          }
       }
       
      if("id" === mode) { 
          if(token.CURLY_OPEN === ntkn) {
             mode = "open"
-            gssInfo("switch mode to: " + mode + " at token: " + tkn)
+            germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
          }
          ruleData.identifier += tkn
          continue
@@ -515,14 +543,14 @@ germSheets.Parser.prototype.parseDeclarations.subroutine = function(tokens, rule
             ruleData.cssText += qntm.slice()
             qntm = ""
             mode = "css"
-            gssInfo("switch mode to: " + mode + " at token: " + tkn)
+            germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             continue
          }
          if(token.CURLY_OPEN === tkn) {
             ruleData.childRules[++crIdx] = qntm.slice()
             qntm = ""
             mode = "nested"
-            gssInfo("switch mode to: " + mode + " at token: " + tkn)
+            germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             continue
          }
          
@@ -532,14 +560,14 @@ germSheets.Parser.prototype.parseDeclarations.subroutine = function(tokens, rule
          if(token.INLINE_THRU === tkn) {
             mode = "css"
             crIdx++
-            gssInfo("switch mode to: " + mode + " at token: " + tkn)
+            germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             continue
          }
          if(token.CURLY_CLOSE === tkn && token.BANG === ntkn) {
             if(this.tknzr.index+1 < this.tknzr.tokens.length && token.BANG !== this.tknzr.tokens[this.tknzr.index+1]) {
                mode = "css"
                ruleData.childRules[crIdx++] += tkn
-               gssInfo("switch mode to: " + mode + " at token: " + tkn)
+               germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
                continue
             }                  
             
@@ -558,7 +586,7 @@ germSheets.Parser.prototype.parseDeclarations.subroutine = function(tokens, rule
          if(token.CURLY_CLOSE === tkn && token.BANG !== ntkn) {
             mode = "open"
             
-            gssInfo("switch mode to: " + mode + " at token: " + tkn)
+            germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             break
          }
          ruleData.cssText += tkn
@@ -571,6 +599,8 @@ germSheets.Parser.prototype.parseDeclarations.subroutine = function(tokens, rule
    
    ruleData.identifier = ruleData.identifier.replace(/^\u0020*|\u0020*$/g, '')
    ruleData.cssText = ruleData.cssText.replace(/^[\u0020\u21B5]*|[\u21B5!]*|[\u21B5\u0020\!]*$/g, '')
+   
+   germSheets.config.enableLogging && console.log("ruleData@_parseDeclarations: %o", ruleData)
    
    return ruleData
 }
@@ -592,8 +622,8 @@ germSheets.Parser.prototype.unstore = function() {
       cssRuleData: this.store.cssRules.slice()
    }
    
-   gssInfo("parser::unstore")
-   gssInfo(r)
+   germSheets.config.enableLogging && console.log("parser::unstore")
+   germSheets.config.enableLogging && console.log(r)
    
    for(p in this.store) {
       this.store[p] = undefined
@@ -603,4 +633,4 @@ germSheets.Parser.prototype.unstore = function() {
    return r
 }
 
-})(window, window.document, window.germSheets)
+})(window)

@@ -1,26 +1,20 @@
-//goog.provide('germsheets.http')
-
-//goog.require('germsheets.namespace')
-
 /** 
  *  @file a simple XMLHttpRequest wrapper
- *  @version 1.0.0
+ *  @version 1.0.1
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
- *  @author Max Burow <max@pixelf3hler.de>
+ *  @author <max@pixelf3hler.de>
  *  @license license.txt
  *  The MIT License
  */
-(function(window, document, germSheets, undefined) {
-
-   function getXHR()
-   {
-      if(!!('XMLHttpRequest' in window))
-      {
+(function(window, undefined) {
+   
+   var germSheets = window.germSheets || {}
+   
+   function getXHR() {
+      if('XMLHttpRequest' in window) {
           return new XMLHttpRequest()
-      }else
-      {
-          try
-          {
+      }else {
+          try {
               return new ActiveXObject('MSXML2.XMLHTTP.3.0')
           }catch(err)
           {
@@ -34,8 +28,8 @@
           }
       }
    }
-   function qstring(obj)
-   {
+   
+   function qstring(obj) {
       var p, s = ''
       for(p in obj)
       {
@@ -44,17 +38,15 @@
       return s.substring(0, s.length-1)
    }
    
-   function req(opt)
-   {
+   function req(opt) {
       var xhr = getXHR(),
       method = !opt.method ? "post" : opt.method
       
       if(!opt.url) {
-         return window.console && window.console.log("No url defined")
+         return window.console && window.germSheets.config.enableLogging && console.log("No url defined")
       }
       
-      if(xhr)
-      {
+      if(xhr) {
          xhr.open(method, opt.url, true)
          
          xhr.responseType = opt.responseType || "text"
@@ -63,19 +55,18 @@
          
          xhr.onreadystatechange = function() {
             if(4 == xhr.readyState && 200 == xhr.status) {
-               //console.log(xhr);
+               //germSheets.config.enableLogging && console.log(xhr);
                opt.onsuccess && opt.onsuccess(xhr.responseText||xhr.responseXML)
             }
          }
          xhr.onerror = function() {
-            console.log(xhr.responseText);
+            germSheets.config.enableLogging && console.log(xhr.responseText);
          }
          xhr.send(!opt.data ? null : qstring(opt.data))
          
          return xhr
          
-      }else
-      {
+      }else {
          throw new Error('failed to instantiate XMLHttpRequest')
       }
    }
@@ -103,12 +94,11 @@
    
    germSheets.getFunction = function(fnName, callback) {
       if(fnName in germSheets.fn) {
-         callback(germSheets.fn[fnName])
-         return
+         return callback(germSheets.fn[fnName])
       }
-      if(germSheets.config.ajax.useXHR) {
+      if(!germSheets.config.useWorker) {
          var // using xhr:
-         url = germSheets.config.ajax.baseUrl + "core/methods/" + fnName.toLowerCase() + ".js",
+         url = germSheets.config.baseUrl + "core/methods/" + fnName.toLowerCase() + ".js",
          processingInstruction = { eval: true }, rawInstructions = []
          
          if("never" === germSheets.config.cachePolicy) {
@@ -139,7 +129,7 @@
                         return !isNaN(m2.charCodeAt(0)) ? '"' + m2 + '"' : ""
                      }).split(" ").slice(1, -1)
                      
-                     gssInfo("rawInstructions: " + rawInstructions)
+                     //germSheets.config.enableLogging && console.log("rawInstructions: " + rawInstructions)
                      
                      return m
                   })
@@ -152,14 +142,14 @@
                   }
                }// ? !!(parseInt(response.substr(8, 1))) : true
                
-               gssInfo("creating function " + fnName + " using: " + (processingInstruction.eval ? "eval()" : "Function()"), response)
+               //germSheets.config.enableLogging && console.log("creating function " + fnName + " using: " + (processingInstruction.eval ? "eval()" : "Function()"), response)
                
                germSheets.fn[fnName] = processingInstruction.eval ? eval("(" + response + ")") : Function("var _here_ = '" + fnName + "'\n\n" + response) //
                callback(germSheets.fn[fnName])
-               //gssInfo(germSheets.fn[fnName]())
+               //germSheets.config.enableLogging && console.log(germSheets.fn[fnName]())
             })
          }catch(err) {
-            gssError(err)
+            germSheets.config.enableLogging && console.log(err)
          }
       }else {
          var // using a worker: TODO adapt above changes to support processing instructions
@@ -172,7 +162,7 @@
             callback(germSheets.fn[fnName])
          }
          
-         gssInfo("starting new worker")
+         germSheets.config.enableLogging && console.log("starting new worker")
          worker.postMessage(url)
       }
    }
@@ -191,4 +181,4 @@
       return fn
    }
 
-})(window, window.document, window.germSheets)
+})(window)

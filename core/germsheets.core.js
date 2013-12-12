@@ -1,17 +1,12 @@
-//goog.require('germsheets.namespace')
-//goog.require('germsheets.http')
-//goog.require('germsheets.parser')
-//goog.require('germsheets.compiler')
-
 /** 
  *  @file germSheets core objects
  *  @version 1.0.0
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
- *  @author Max Burow <max@pixelf3hler.de>
+ *  @author <max@pixelf3hler.de>
  *  @license license.txt
  *  The MIT License
  */
-(function(window, document, germSheets, undefined) {
+(function(window, undefined) {
    
    /*
       gssData structure:
@@ -26,7 +21,9 @@
          cssId: []      => css id rules
       }
    */
-   var token = germSheets.token
+   var 
+   germSheets = window.germSheets || {},
+   token = germSheets.token
    
    /* escapes strings for use in regexp patterns
    */
@@ -66,18 +63,19 @@
    
    /** @property {function} pause - pauses execution for n/1000 seconds
     *  @param {number} n - the sleeping time in milliseconds
+    *  @deprecated
    ------*/
-   germSheets.pause = function(n) {
+   /*germSheets.pause = function(n) {
       var 
-      start = +new Date
+      start = +new Date,
       now = start
-      gssInfo("pausing...")
+      germSheets.config.enableLogging && console.log("pausing...")
       while(now - start < n) {
          now = +new Date
       }
-      gssInfo("paused for: " + n + "ms")
+      germSheets.config.enableLogging && console.log("paused for: " + n + "ms")
       return n
-   }
+   }*/
    
    
    
@@ -90,8 +88,6 @@
       this.identifier = ""
       this.token = ""
       this.parentNode = node
-      this.isExpression = false
-      this.isMethod = false
    }
    
    
@@ -99,6 +95,10 @@
    -----------------------*/
    germSheets.Variable = function(args, node) {
       germSheets.Element.call(this, args || [], node || null)
+      
+      this.isExpression = false
+      this.inExpression = false
+      this.isMethod = false
       
       return this.build()   
    }
@@ -134,10 +134,10 @@
             if(token.METH === tkn) {
                if(token.METH2 === ntkn) {
                   this.isMethod = true
-                  //gssDebug("Variable::this.isMethod", this.isMethod)
+                  //germSheets.config.enableLogging && console.log("Variable::this.isMethod", this.isMethod)
                }else if(token.PAR_OPEN === ntkn) {
                   this.isExpression = true
-                  //gssDebug("Variable::this.isExpression", this.isExpression)
+                  //germSheets.config.enableLogging && console.log("Variable::this.isExpression", this.isExpression)
                }
             }
              
@@ -158,7 +158,7 @@
             ref = ref[0]
          }
          this.cssText = ref.process(this.cssText)
-         //gssDebug("VariableExpression::cssText", this.identifier, this.cssText)
+         //germSheets.config.enableLogging && console.log("VariableExpression::cssText", this.identifier, this.cssText)
       }
       
       if(this.isMethod) {
@@ -171,7 +171,7 @@
          var siht = this
          ref.process(this.cssText, function(refOut) {
             siht.cssText = refOut
-            //gssDebug("VariableMethod::cssText", this.identifier, this.cssText)
+            //germSheets.config.enableLogging && console.log("VariableMethod::cssText", this.identifier, this.cssText)
          })
       }
       
@@ -182,9 +182,14 @@
    }
    
    germSheets.Variable.prototype.process = function(input) {
-      var regex = new RegExp('(?:' + regEsc(this.token + this.identifier) + ');*', "g")
-      this.output = input.replace(regex, this.cssText)
-      
+      var regex = new RegExp(regEsc(this.getFullIdentifier()) + ';*', 'g')
+      // remove semicolon if inside an expression
+      if(this.inExpression && token.END_VAR === this.cssText.charAt(this.cssText.length-1)) {
+         //this.cssText = this.cssText.substring(0, this.cssText.length-1)
+         this.output = input.replace(regex, this.cssText.substring(0, this.cssText.length-1))
+      }else {
+         this.output = input.replace(regex, this.cssText)
+      }
       return this.output
    }
    
@@ -260,7 +265,6 @@
    }
    
    germSheets.Mixin.prototype.process = function(input) {
-      // get argument values
       var
       siht = this,
       rgx = new RegExp(regEsc(this.token + this.identifier + '\u0020') + "*\\([^\\)]*\\);", "g")
@@ -297,14 +301,14 @@
          if(token.METH === tkn && token.METH2 === ntkn) {
             if("open" === mode) {
                mode = "token"
-               //gssInfo("switch mode to: " + mode + " at token: " + tkn)
+               //germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             }
          }
          
          if(token.PAR_OPEN === tkn) {
             if("open" === mode) {
                mode = "args"
-               //gssInfo("switch mode to: " + mode + " at token: " + tkn)
+               //germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
                continue
             }
          }
@@ -320,7 +324,7 @@
             
             if(token.METH2 === tkn) {
                mode = "id"
-               //gssInfo("switch mode to: " + mode + " at token: " + tkn)
+               //germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             }
             this.token += tkn
             continue
@@ -330,7 +334,7 @@
             
             if(token.PAR_OPEN === ntkn) {
                mode = "open"
-               //gssInfo("switch mode to: " + mode + " at token: " + tkn)
+               //germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             }
             this.identifier += tkn
             continue
@@ -340,15 +344,15 @@
             this.rawArguments += tkn
             if(token.PAR_CLOSE === ntkn) {
                mode = "open"
-               //gssInfo("switch mode to: " + mode + " at token: " + tkn)
+               //germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             }
             continue
          }  
       }
-      gssInfo("build complete: " + this.identifier)
-      //gssInfo(this)
       
-      return this
+      germSheets.getFunction(this.identifier, function(fn) {
+         germSheets.config.enableLogging && console.log("build complete: %s", fn.toString())
+      })
    }
    
    germSheets.Method.prototype.getFullIdentifier = function() {
@@ -356,7 +360,7 @@
    }
    
    germSheets.Method.prototype._process = function(input, processor) {
-      gssInfo("call to _process()")
+      //germSheets.config.enableLogging && console.log("call to _process()")
       var // clean up arguments and get required variable definitions
       tmp = this.rawArguments.split(/\u0020*,\u0020*/),
       requiredVars = [], varInputs = [], varIdx = 0, i = 0, n = tmp.length
@@ -382,20 +386,22 @@
       // generate output
       this.output = input.replace(this.gssText, this.cssText)
       
+      germSheets.config.enableLogging && console.log("Method %o processed " + input + " to " + this.output, this)
+      
       return this.output
    }
    
    germSheets.Method.prototype.process = function(input, callback) {
-      gssInfo("call to process(" + input + ")")
+      //germSheets.config.enableLogging && console.log("call to process(" + input + ")")
       // only do all that crap if necessary..
-      if(-1 === input.indexOf(this.token + this.identifier)) {
+      if(-1 === input.indexOf(this.getFullIdentifier())) {
          callback(input)
          return
       }
       var siht = this
       /* defined in germsheets.http */
       germSheets.getFunction(this.identifier, function(fn) {
-         gssInfo("load complete: " + fn.toString())
+         //germSheets.config.enableLogging && console.log("load complete: " + fn.toString())
          var r = siht._process(input, fn)
          callback(r)
       })
@@ -486,7 +492,7 @@
       n = requiredVars.length
       
       for(; i < n; i++) {
-      //gssInfo("skeleton::process: " + varInputs[i])
+      //germSheets.config.enableLogging && console.log("skeleton::process: " + varInputs[i])
          this.argumentValues.push(requiredVars[i].process(varInputs[i]))
       }
       // call method on germSheets.fn
@@ -514,6 +520,7 @@
       this.evaledExpression = ""
       this.cleanExpression = ""
       this.cssReferences = []
+      this.gssVarReferences = []
       this.hasReferences = false
       this._builtReferences = []
       
@@ -533,18 +540,19 @@
             }
          }
          
-         if(token.SQUARE_OPEN === tkn) {
+         if(token.SQUARE_OPEN === tkn || token.VAR === tkn) {
             if("exp" === mode) {
                this.hasReferences = true
             }
          }
          
-         
          if("token" === mode) {
             this.token += tkn
             if(token.PAR_OPEN === tkn) {
                mode = "exp"
-            }
+            }/*else {
+               this.token += tkn
+            }*/
             continue
          }
          
@@ -556,8 +564,6 @@
                mode = "open"
                break
             }
-            
-            continue
          }
          
       }
@@ -573,7 +579,7 @@
          tknzr.tokens.length = 0
          tknzr.tokens = this.rawExpression.split("")
          mode = "open"
-         var refIdx = 0
+         var refIdx = 0, varIdx = 0
          while(false !== (tkn = tknzr.nextToken())) {
             ntkn = tknzr.index < tknzr.tokens.length ? tknzr.tokens[tknzr.index] : token.NUL
             
@@ -581,6 +587,14 @@
                if("open" === mode) {
                   mode = "cssref"
                   this.cssReferences[refIdx] = tkn
+                  continue
+               }
+            }
+            
+            if(token.VAR === tkn) {
+               if("open" === mode) {
+                  mode = "gssref"
+                  this.gssVarReferences[varIdx] = tkn
                   continue
                }
             }
@@ -593,17 +607,28 @@
                }
                continue
             }
+            
+            if("gssref" === mode) {
+               if(token.OP.test(tkn) || token.END_VAR === tkn) {
+                  mode = "open"
+                  varIdx++
+               }else {
+                  this.gssVarReferences[varIdx] += tkn
+               }
+            }
          }
          
          if(this.cssReferences && this.cssReferences.length) {
-            this.buildReferences()
+            this.buildCSSReferences()
          }
+         
       }
-      
+      germSheets.config.enableLogging && console.log("new Expression: %o", this)
+      germSheets.config.enableLogging && console.log("varRefs: %o", this.gssVarReferences)
       return this
    }
    
-   germSheets.Expression.prototype.buildReferences = function() {
+   germSheets.Expression.prototype.buildCSSReferences = function() {
       var i = 0, n = this.cssReferences.length
       for(; i < n; i++) {
          this._builtReferences[i] = new germSheets.CSSReference(this.cssReferences[i], this)
@@ -614,8 +639,18 @@
    germSheets.Expression.prototype.process = function(input) {
       input = input || ""
       this.cleanExpression = this.rawExpression
+      var siht = this
+      
+      if(this.gssVarReferences && this.gssVarReferences.length) {
+         this.gssVarReferences.forEach(function(v, i) {
+            var gssVar = siht.parentNode.getVariable(v)
+            gssVar.inExpression = true
+            germSheets.config.enableLogging && console.log("processing %o in %o", gssVar, this)
+            siht.cleanExpression = gssVar.process(siht.cleanExpression)
+         })
+      }
+      
       if(this._builtReferences && this._builtReferences.length) {
-         var siht = this
          this._builtReferences.forEach(function(ref) {
             siht.cleanExpression = ref.process(siht.cleanExpression)
          })
@@ -624,17 +659,17 @@
          this.cleanExpression = this.cleanExpression.replace(/^\u0020|em|px|\%|in|mm|cm|ext|pt|pc|;|\u0020$/g, '')
       }
       
-      gssInfo("germSheets.Expression trying to eval: " + this.cleanExpression)
+      germSheets.config.enableLogging && console.log("germSheets.Expression trying to eval: " + this.cleanExpression)
       
       try {
          this.evaledExpression = eval("(" + this.cleanExpression + ")")
       }catch(er) {
-         gssError("error evaluating: " + this.cleanExpression + "\nerror: " + er)
+         console.error("error evaluating: " + this.cleanExpression + "\nerror: " + er)
          try {
-            var fn = Function("(function() { return " + this.cleanExpression + " })")
+            var fn = Function("return " + this.cleanExpression)
             this.evaledExpression = fn()
          }catch(err) {
-            gssError("error using function cast: " + err)
+            console.error("error using function cast: " + err)
             this.evaledExpression = this.cleanExpression
          }
       }
@@ -703,7 +738,6 @@
       return this.build()
    }
    germSheets.CSSDeclaration.prototype.build = function() {
-         
       /* it could be that a declaration only contains a mixin call, without
          referencing a css property..so we have to take that into account.. 
          in that case gssText should be equal to gssValue and property should be either
@@ -722,7 +756,7 @@
       this.property = this.gssText.substring(0, this.gssText.indexOf(":")).replace(/^\s*|\s*$/g, '')
       this.gssValue = this.gssText.substring(this.property.length + 1).replace(/^\s*|\s*$/g, '')
       
-      //gssDebug("this@declaration::build", this)
+      //germSheets.config.enableLogging && console.log("this@declaration::build", this)
       // parse gssValue for references
       // variables, methods and expressions usually assign values to properties and it's desired for expressions to 
       // support nesting as well. Also, there could be more than one reference per declaration (like in shorthand css properties)
@@ -735,8 +769,12 @@
          ltkn = ntkn || tkn
          ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
          
+         if(token.SPACE === tkn) {
+            if("exp" !== mode && "meth" !== mode) mode = "open"
+         }
+         
          if(token.VAR === tkn) {
-            if("open" === mode) {
+            if("open" === mode)/*("var" !== mode)*/ {
                mode = "var"
                
                if(idxReset) {
@@ -752,10 +790,10 @@
          if(token.MIX === tkn) {
             if("open" === mode) {
                
-               gssError("Syntax Error", "germSheets.Mixin can't be assigned to CSS properties")
+               germSheets.config.enableLogging && console.log("Syntax Error", "germSheets.Mixin can't be assigned to CSS properties")
                
             }else {
-               gssError("Syntax Error", "germSheets.Mixin doesn't support nesting yet")
+               germSheets.config.enableLogging && console.log("Syntax Error", "germSheets.Mixin doesn't support nesting yet")
             }
             mode = "exclude"
             continue
@@ -821,7 +859,7 @@
                continue
             }
             
-            if(token.SPACE === ntkn) {
+            if(token.SPACE === ntkn || token.OP.test(ntkn)) {
                mode = "open"
                idxReset = true
             }
@@ -875,9 +913,9 @@
          this.methodRefs = this.rootNode.getObjects("Methods", this.methods)
          if(!this.methodRefs || (this.methodRefs.length !== this.methods.length)) {
             this.methods.forEach(function(itm, idx) {
-               //gssDebug("new method", itm)
+               //germSheets.config.enableLogging && console.log("new method", itm)
                siht.methodRefs[idx] = siht.rootNode.newObject("Method", itm)
-               //gssDebug(siht.methodRefs[idx])
+               //germSheets.config.enableLogging && console.log(siht.methodRefs[idx])
             })
          }
       }
@@ -886,14 +924,14 @@
          this.expressionRefs = this.rootNode.getObjects("Expressions", this.expressions)
          if(!this.expressionRefs || (this.expressionRefs.length !== this.expressions.length)) {
             this.expressions.forEach(function(itm, idx) {
-               //gssDebug("new expression", itm)
+               //germSheets.config.enableLogging && console.log("new expression", itm)
                siht.expressionRefs[idx] = siht.rootNode.newObject("Expression", itm)
-               //gssDebug(siht.expressionRefs[idx])
+               //germSheets.config.enableLogging && console.log(siht.expressionRefs[idx])
             })
          }
       }
       
-      //gssDebug("CSSDeclaration::build", this)
+      //germSheets.config.enableLogging && console.log("CSSDeclaration::build", this)
       return this
    }
    
@@ -904,12 +942,15 @@
       r = this.gssValue, 
       siht = this
       
-      //gssDebug("starting to process", this)
+      //this.completeCallback = callback
+      
+      germSheets.config.enableLogging && console.log("starting to process", this)
       
       // ok..now do variables first
       if(this.varRefs && this.varRefs.length) { 
          this.varRefs.forEach(function(ref) {
             r = ref.process(r)
+            germSheets.config.enableLogging && console.log("CSSDecl::process variable: %o", ref)
          })
       }
       
@@ -929,7 +970,7 @@
          var 
          methProcessor = function(processed) {
             r = processed
-            //gssInfo("methProcessor: " + r)
+            //germSheets.config.enableLogging && console.log("methProcessor: " + r)
             meth = (siht.methodRefs.length > mIdx + 1) ? siht.methodRefs[++mIdx] : false
             if(!meth) {
                //siht.output = siht.identifier + " { " + r.replace(/;/g, '; ') + " }\n"
@@ -971,7 +1012,7 @@
       
       this.output = (token.MIX === this.property) ? r + token.SPACE : this.property + ": " + r + token.SPACE
       
-      //gssDebug("final output", this.output)
+      germSheets.config.enableLogging && console.log("final output of %o " + this.output, this)
       
       callback(this.output)
    }
@@ -994,7 +1035,7 @@
       this.styleDeclarations = {}
       this._builtDeclarations = []
       
-      //gssDebug("************************* new cssPrototype *******************", this, args)
+      //germSheets.config.enableLogging && console.log("************************* new cssPrototype *******************", this, args)
       
       /* old schema */
       //this.gssText = Array.isArray(args) ? args.join("") : args
@@ -1015,6 +1056,8 @@
          
          this._builtDeclarations[i] = new germSheets.CSSDeclaration(this.declarations[i], this)
          this.styleDeclarations[this._builtDeclarations[i].property] = this._builtDeclarations[i]
+         
+         germSheets.config.enableLogging && console.log("new CSSDeclaration: %o", this._builtDeclarations[i])
       }
       
       this.dirty = (this.declarations.length !== this._builtDeclarations.length)
@@ -1024,7 +1067,7 @@
    
    germSheets.CSSRule.prototype.process = function(callback) {
       if(!this._builtDeclarations || !this._builtDeclarations.length) {
-         gssError("something weird must have happened @CSSRule::build or CSSReference::build", this)
+         germSheets.config.enableLogging && console.log("something weird must have happened @CSSRule::build or CSSReference::build", this)
          return callback("error@germSheets.CSSRule::build no declarations found")
       }
       /* iterate declarations and collect the processed output */
@@ -1039,7 +1082,7 @@
          dec = (siht._builtDeclarations.length > decIdx + 1) ? siht._builtDeclarations[++decIdx] : false
          if(!dec) {
             siht.output = siht.identifier + " { " + r + " }\n"
-            //gssDebug("CSSRule::output", siht.output)
+            //germSheets.config.enableLogging && console.log("CSSRule::output", siht.output)
             callback(siht.output, r)
          }else {
             dec.process(aggregator)
@@ -1054,7 +1097,7 @@
        @method
        @public */
    germSheets.CSSRule.prototype.getStyle = function(key) {
-      //gssDebug("getStyle", key)
+      //germSheets.config.enableLogging && console.log("getStyle", key)
       if(key in this.styleDeclarations) {
          var r = this.styleDeclarations[key]
       }else {
@@ -1064,7 +1107,7 @@
             }
          }
       }
-      //gssDebug("getStyle", r)
+      //germSheets.config.enableLogging && console.log("getStyle", r)
       return !r.cssText ? r.gssValue : r.cssText
    }
    
@@ -1169,7 +1212,7 @@
             this.buildCSSRules()
          }
       }else {
-         gssInfo("checklist complete")
+         germSheets.config.enableLogging && console.log("checklist complete")
       }
       return this
    }
@@ -1177,11 +1220,11 @@
    germSheets.GermNode.prototype.buildVars = function() {
       if(this._builtVars && this._builtVars.length) return this._builtVars;
       if(this.vars && this.vars.length) {
-         gssInfo("start building variables")
+         germSheets.config.enableLogging && console.log("start building variables")
          for(var i=0; i<this.vars.length; i++) {
             this._builtVars[i] = new germSheets.Variable(this.vars[i], this)
             this.gssVars[this._builtVars[i].identifier] = this._builtVars[i].cssText
-            gssInfo(this._builtVars[i])
+            germSheets.config.enableLogging && console.log(this._builtVars[i])
          }
       }         
       return this.check("vars")
@@ -1190,11 +1233,11 @@
    germSheets.GermNode.prototype.buildMixins = function() {
       if(this._builtMixins && this._builtMixins.length) return this._builtMixins
       if(this.mixins && this.mixins.length) {
-         gssInfo("start building mixins")
+         germSheets.config.enableLogging && console.log("start building mixins")
          for(var i=0; i<this.mixins.length; i++) {
             this._builtMixins[i] = new germSheets.Mixin(this.mixins[i], this)
             this.gssMixins[this._builtMixins[i].identifier] = this._builtMixins[i].cssText
-            gssInfo(this._builtMixins[i])
+            germSheets.config.enableLogging && console.log(this._builtMixins[i])
          }
       }         
       return this.check("mixins")
@@ -1203,10 +1246,10 @@
    germSheets.GermNode.prototype.buildMethods = function() {
       if(this._builtMethods && this._builtMethods.length) return this._builtMethods
       if(this.methods && this.methods.length) {
-         gssInfo("start building methods")
+         germSheets.config.enableLogging && console.log("start building methods")
          for(var i=0; i<this.methods.length; i++) {
             this._builtMethods[i] = new germSheets.Method(this.methods[i], this)
-            gssInfo(this._builtMethods[i])
+            germSheets.config.enableLogging && console.log(this._builtMethods[i])
          }
       }         
       return this.check("methods")
@@ -1215,10 +1258,10 @@
    germSheets.GermNode.prototype.buildExpressions = function() {
       if(this._builtExpressions && this._builtExpressions.length) return this._builtExpressions
       if(this.expressions && this.expressions.length) {
-         gssInfo("start building expressions")
+         germSheets.config.enableLogging && console.log("start building expressions")
          for(var i=0; i < this.expressions.length; i++) {
             this._builtExpressions[i] = new germSheets.Expression(this.expressions[i], this)
-            gssInfo(this._builtExpressions[i])
+            germSheets.config.enableLogging && console.log(this._builtExpressions[i])
          }
       }         
       return this.check("expressions")
@@ -1227,10 +1270,10 @@
    germSheets.GermNode.prototype.buildSkeletons = function() {
       if(this._builtSkeletons && this._builtSkeletons.length) return this._builtSkeletons
       if(this.skeletons && this.skeletons.length) {
-         gssInfo("start building methods")
+         germSheets.config.enableLogging && console.log("start building methods")
          for(var i=0; i<this.skeletons.length; i++) {
             this._builtSkeletons[i] = new germSheets.Skeleton(this.skeletons[i], this)
-            gssInfo(this._builtSkeletons[i])
+            germSheets.config.enableLogging && console.log(this._builtSkeletons[i])
          }
       }
       return this.check("skeletons")
@@ -1241,7 +1284,7 @@
          this._builtCSSRules[i] = new germSheets.CSSRule(this.cssRuleData[i], this)
          this.gssCSSRules[this._builtCSSRules[i].identifier] = this._builtCSSRules[i]
       }
-      //gssDebug("builtCSSRules: ", this._builtCSSRules)
+      //germSheets.config.enableLogging && console.log("builtCSSRules: ", this._builtCSSRules)
       
       return this.check("css")
    }
@@ -1284,8 +1327,8 @@
       
       this.compiledDOMNode = outputNode
       
-      gssInfo("*** finished compiling ***")
-      gssLog("germSheets completed in " + germSheets.stats.stopTimer())
+      germSheets.config.enableLogging && console.log("*** finished compiling ***")
+      germSheets.config.enableLogging && console.log("germSheets completed in " + germSheets.stats.stopTimer())
       
       this.completeCallback(output + "\n/*<!--** code processed in " + germSheets.stats.executionTime + " **-->*/\n")
    }
@@ -1319,7 +1362,7 @@
          skel.process(function(processed) {
             siht.processed.skeletons[completed] = processed
             if(siht._builtSkeletons.length <= ++completed) {
-               gssInfo("done processing skeletons")
+               germSheets.config.enableLogging && console.log("done processing skeletons")
                callback("\n/* Skeletons\n---------------------- */\n" + siht.processed.skeletons.join("\n"))
             }
          })
@@ -1334,11 +1377,11 @@
       for(; i < n; i++) {
          cssRule = this._builtCSSRules[i]
          cssRule.process(function(processed) {
-               gssInfo("cssrule callback: " + completed)
+               germSheets.config.enableLogging && console.log("cssrule callback: " + completed)
                siht.processed.cssRule[completed] = processed
                
                if(siht._builtCSSRules.length <= ++completed) {
-                  gssInfo("done processing css rules")
+                  germSheets.config.enableLogging && console.log("done processing css rules")
                   callback("\n\n" + siht.processed.cssRule.join("\n\n") + "\n\n")
                }
             }
@@ -1359,7 +1402,7 @@
             return joined processed cssRules
          */
          rule.process(function(processed, decsOnly) {
-            //gssInfo("queued cssrule callback: " + completed)
+            //germSheets.config.enableLogging && console.log("queued cssrule callback: " + completed)
             
             if(siht._queuedCSSRules.length <= ++completed) {
                if(false !== siht.selectorExists(rule.identifier)) {
@@ -1379,14 +1422,14 @@
                      
                      //rl = rl.replace(/undefined\u0020*/g, '')
                      siht.processed.cssRule[j] = rl
-                     //gssDebug("inner update processed rule", siht.processed.cssRule[j])
+                     //germSheets.config.enableLogging && console.log("inner update processed rule", siht.processed.cssRule[j])
                      return rl
                      
                   })(rule.identifier, decsOnly)
                }else {
                   siht.processed.cssRule.push(processed)
                }
-               gssInfo("done processing queued cssrules")
+               germSheets.config.enableLogging && console.log("done processing queued cssrules")
                callback("\n\n" + siht.processed.cssRule.join("\n\n") + "\n\n")
             }
          })
@@ -1418,7 +1461,7 @@
          if that doesn't work, just store added rules in a new list..say this._addedCSSRules
          or something..and just process those after the main routine finishes
       */
-      //gssDebug("GermNode::addCSSRule at", rule, this._builtCSSRules.length)
+      //germSheets.config.enableLogging && console.log("GermNode::addCSSRule at", rule, this._builtCSSRules.length)
       
       this._queuedCSSRules[this._queuedCSSRules.length] = rule
       
@@ -1449,15 +1492,15 @@
       j = 0, k = trunk.length,
       i = 0, n = referenceList.length
       
-      gssLog("GermNode::getObjects", "key: " + key + " trunk: ", trunk)
+      germSheets.config.enableLogging && console.log("GermNode::getObjects", "key: " + key + " trunk: ", trunk)
       
       for(i = 0; i < n; i++) {
          refValue = Array.isArray(referenceList[i]) ? referenceList[i].join("").replace(/(?:\(.*\))*;$/g, '') : referenceList[i].replace(/(?:\(.*\))*;$/g, '')
          for(j = 0; j < k; j++) {
-            gssInfo("matching: " + refValue, "against: " + trunk[j].getFullIdentifier(), "from: _built" + key)
+            germSheets.config.enableLogging && console.log("matching: " + refValue, "against: " + trunk[j].getFullIdentifier(), "from: _built" + key)
             if(trunk[j].getFullIdentifier() === refValue) {
                r[r.length] = trunk[j]
-               gssInfo("matched: ", trunk[j])
+               germSheets.config.enableLogging && console.log("matched: ", trunk[j])
                break
             }
          }
@@ -1473,7 +1516,7 @@
    }
    
    germSheets.GermNode.prototype.getCSSRule = function(key) {
-      //gssInfo("getCSSRule: " + key)
+      //germSheets.config.enableLogging && console.log("getCSSRule: " + key)
       
       if(key in this.gssCSSRules) { 
          return this.gssCSSRules[key] 
@@ -1539,7 +1582,7 @@
             cssv = obj[p]
             r += cssp + ": " + cssv + token.END_VAR + delimiter
          }
-         gssDebug("germSheets::expandObject", r)
+         germSheets.config.enableLogging && console.log("germSheets::expandObject", r)
       }/*else {
          // TODO: implement xml / query string expander
       }*/
@@ -1586,7 +1629,7 @@
          cssText: ruleCSSText
       }, germNode)
       
-      //gssDebug("germSheets::addNewCSSRule", cssRule)
+      //germSheets.config.enableLogging && console.log("germSheets::addNewCSSRule", cssRule)
       
       return germNode.addCSSRule(cssRule)
    }
@@ -1603,9 +1646,9 @@
       gssCode = isDOMNode ? germSheets.serialize(gssNode) : gssNode, // regex replaces opening style tags, optional xml comment tokens and <?gss processing instructions
       parser = new germSheets.Parser(gssCode.replace(/^\s*(?:<style[^>]*>|[\r\n\s<\-!\[CDAT\?gss])*|(?:[\r\n\s\?>\-\]]|<\/style>)*$/mg, ""))
       
-      gssInfo("** start parser **")
+      germSheets.config.enableLogging && console.log("** start parser **")
       parser.parse()
-      gssInfo("*** parser completed ***")
+      germSheets.config.enableLogging && console.log("*** parser completed ***")
       
       compiler = new germSheets.Compiler(parser.unstore(), gssCode)
       
@@ -1613,11 +1656,11 @@
       
       isDOMNode && gssNode.remove()
       
-      gssInfo("** start compiling **")
+      germSheets.config.enableLogging && console.log("** start compiling **")
       compiler.compile(function(compiledCss) {
-         gssInfo("callback@germSheets::run")
+         germSheets.config.enableLogging && console.log("callback@germSheets::run")
          
-         gssLog("compiler output: ", compiledCss)
+         germSheets.config.enableLogging && console.log("compiler output: ", compiledCss)
          
          if('__gssdebug' in window) window.__gssdebug(compiledCss)
          
@@ -1625,7 +1668,7 @@
          
          foreach(excessHeadNodes, function(itm) {
             itm.remove()
-            gssInfo("removed DOM node: ", itm)
+            germSheets.config.enableLogging && console.log("removed DOM node: ", itm)
          })
          
       })
@@ -1642,8 +1685,8 @@
       
       if(!germSheets.config) {
          // get default config
-         germSheets(null)
-         gssLog(germSheets.config)
+         germSheets.configure(null)
+         germSheets.config.enableLogging && console.log(germSheets.config)
       }
       
       germSheets.stats.startTimer()
@@ -1668,4 +1711,4 @@
       })
    }
    
-})(window, window.document, window.germSheets)
+})(window)
