@@ -1,24 +1,24 @@
 /** 
  *  @file creates a namespace for germSheets
- *  @version 1.0.1
+ *  @version 1.0.2
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
  *  @author <max@pixelf3hler.de>
  *  @license license.txt
  *  The MIT License
  *
- *  @todo   enforce correct execution order when processing style declarations
+ *  @todo   enforce correct execution order when processing style declarations (i can't remember exactly what i meant..but i think it refers to the output)
  *          ✓ enable variables to store methods and expressions, so that they can be fetched at the same time as variables and mixins (optional, but could pick up some speed)
- *          implement inline-skeletons called 'ribs' token: <+
+ *          ✓ implement inline-skeletons called 'ribs' token: <+
  *          port to nodejs?
- *          add support for variables in expressions
+ *          ✓ add support for variables in expressions
  */
 (function(window, undefined) {
    var // default config
    defaults = {
       destructionPolicy: "immediately",
-      cachePolicy: "never",
-      localCacheType: "indexedDB", // "localStorage" would be the alternative if there's not much to cache
-      colorOutputFormat: "likeInput", // "rgb" | "rgba" | "hex"
+      cachePolicy: "never", // "output" | "always"
+      cacheType: "localStorage", // i also wrote a wrapper for indexedDB..but haven't implemented it yet
+      colorOutputFormat: "likeInput", // "rgb" | "rgba" | "hex" ..also unimplemented
       enableLogging: false,
       // set true to load external scripts
       // in a separate thread..defaults to false
@@ -31,18 +31,15 @@
    /**
     *  @private
     *  naive object merge. should be sufficient since it's only used on the config object,
-    *  which has string, number and boolean type properties.
+    *  which has string[, number] and boolean type properties.
     */
    
    function _merge(obj1, obj2) {
-      var p, r = {}
-      for(p in obj1) {
-         r[p] = obj1[p]
-      }
       for(p in obj2) {
-         r[p] = obj2[p]
+         if(obj1.hasOwnProperty(p))
+            obj1[p] = obj2[p]
       }
-      return r
+      return obj1
    }
    /**
     * @property {object} config - germSheets default config
@@ -60,19 +57,38 @@
    germSheets.config = null
    
    /**
+    * @type {string}
+    * @public
+    */
+   germSheets.clientId = ""
+   
+   // http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript
+   germSheets.createUid = function() { 
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8)
+          return v.toString(16)
+      })
+   }
+   
+   
+   /**
     * @param {object} [config] - an optional configuration object. note that germSheets doesn't have to be called directly in order to work
     * 
     */
    germSheets.configure = function(config) {
       germSheets.config = config ? _merge(defaults, config) : defaults
       
+      if(!(germSheets.config.cacheType in window)) {
+         // disable caching if cacheType isn't supported
+         germSheets.config.cachePolicy = "never"
+      }
    }
    
    /**
     * 1.0.1 - changes in parsing / de-serializing
-    * 
+    * 1.0.2 - added rib elements and fixed some bugs
     **/
-   germSheets.version = "1.0.1"
+   germSheets.version = "1.0.2"
    
    /**
     * 
@@ -87,12 +103,12 @@
    germSheets.token = {
       BANG: "!",
       VAR: "$",
-      END_VAR: ";",
-      MIX: "~",
-      END_MIX_DECL: "}",
-      END_MIX_CALL: ";",
-      SKEL: "+",
-      END_SKEL: ";",
+      SEMICOLON: ";",
+      TILDE: "~",
+      //END_MIX_DECL: "}",
+      //END_MIX_CALL: ";",
+      PLUS: "+",
+      //END_SKEL: ";",
       EQ: "=",
       PAR_OPEN: "(",
       PAR_CLOSE: ")",
@@ -100,20 +116,20 @@
       CURLY_CLOSE: "}",
       SQUARE_OPEN: "[",
       SQUARE_CLOSE: "]",
-      METH: "<",
-      METH2: "-",
-      COMB: "/",
-      COMB2: "*",
-      COML: "/",
-      COML2: "/",
+      LT: "<",
+      MINUS: "-",
+      FWD_SLASH: "/",
+      ASTERISK: "*",
+      //COML: "/",
+      //COML2: "/",
       INLINE_THRU: "`",
-      CSSCLASS: ".",
+      DOT: ".",
       COLON: ":",
-      CSSID: "#",
+      HASH: "#",
       CSSEL: /^[a-z\-]/,
       CSSPROP: /^[\w\-]/,
       OP: /[\+\-\/\*%=\?\)]/,
-      END_CSS: "}",
+      //END_CSS: "}",
       SPACE: String.fromCharCode(0x20),
       DEL: String.fromCharCode(0x7F), // unicode u+007F => http://www.fileformat.gssInfo/gssInfo/unicode/char/7f/index.htm
       // null byte to terminate 

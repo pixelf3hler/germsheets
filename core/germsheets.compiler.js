@@ -1,6 +1,6 @@
 /** 
  *  @file creates the final output
- *  @version 1.0.1
+ *  @version 1.0.2
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
  *  @author <max@pixelf3hler.de>
  *  @license license.txt
@@ -25,6 +25,7 @@
       this.rawData = gssData
       
       this.germNode = new germSheets.GermNode(gssData, gssSourceCode)
+      
       this.output = "/* *** germsheets 1.0.1 *** */\n\n"
       this.compile = function(callback) {
          var siht = this

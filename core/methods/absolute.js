@@ -21,8 +21,8 @@ if(f = germSheets.expandArguments(["x", "y", "elementSelector"], arguments, _her
       // with auto margin
       x = ("center" === f.x) ? "auto" : f.x
       y = ("center" === f.y) ? "0px" : f.y
-      germSheets.addNewCSSRule(f.elementSelector, {position: "static", marginTop: y, marginRight: ("auto" === x) ? x : "0px", marginBottom: y, marginLeft: x})
-      return ""
+      //germSheets.addNewCSSRule(f.elementSelector, {marginTop: y, marginRight: ("auto" === x) ? x : "0px", marginBottom: y, marginLeft: x})
+      return "margin-top: " + y + "; margin-right: " + ("auto" === x ? x : "0px") + "; margin-bottom: " + y + "; margin-left: " + x + ";"
    }
    
    

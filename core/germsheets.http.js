@@ -1,6 +1,6 @@
 /** 
  *  @file a simple XMLHttpRequest wrapper
- *  @version 1.0.1
+ *  @version 1.0.2
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
  *  @author <max@pixelf3hler.de>
  *  @license license.txt
@@ -93,9 +93,21 @@
    }
    
    germSheets.getFunction = function(fnName, callback) {
+      // already loaded?
       if(fnName in germSheets.fn) {
-         return callback(germSheets.fn[fnName])
+         return callback ? callback(germSheets.fn[fnName]) : germSheets.fn[fnName]
       }
+      // check cache
+      if(germSheets.Cache.hasInStore(fnName)) {
+         var fnSource = decodeURIComponent(germSheets.cache(fnName)).split("::")
+         if("eval" === fnSource[0]) {
+            germSheets.fn[fnName] = eval(fnSource[1])
+         }else {
+            germSheets.fn[fnName] = Function(fnSource[1])
+         }
+         return callback ? callback(germSheets.fn[fnName]) : germSheets.fn[fnName]
+      }
+      
       if(!germSheets.config.useWorker) {
          var // using xhr:
          url = germSheets.config.baseUrl + "core/methods/" + fnName.toLowerCase() + ".js",
@@ -143,9 +155,20 @@
                }// ? !!(parseInt(response.substr(8, 1))) : true
                
                //germSheets.config.enableLogging && console.log("creating function " + fnName + " using: " + (processingInstruction.eval ? "eval()" : "Function()"), response)
+               if(processingInstruction.eval) {
+                  var fnString = "(" + response + ")"
+                  germSheets.fn[fnName] = eval(fnString)
+               }else {
+                  fnString = "var _here_ = '" + fnName + "'\n\n" + response
+                  germSheets.fn[fnName] = Function(fnString)
+               }
                
-               germSheets.fn[fnName] = processingInstruction.eval ? eval("(" + response + ")") : Function("var _here_ = '" + fnName + "'\n\n" + response) //
-               callback(germSheets.fn[fnName])
+               // write to cache
+               if("always" === germSheets.config.cachePolicy) {
+                  germSheets.cache(fnName, encodeURIComponent(fnString))
+               }
+               
+               callback && callback(germSheets.fn[fnName])
                //germSheets.config.enableLogging && console.log(germSheets.fn[fnName]())
             })
          }catch(err) {
@@ -159,7 +182,7 @@
          worker.onmessage = function(e) {
             this.terminate()
             germSheets.fn[fnName] =  Function("var _here_ = '" + fnName + "'\n\n" + response) //eval("(" + e.data + ")") //Function(e.data)
-            callback(germSheets.fn[fnName])
+            callback && callback(germSheets.fn[fnName])
          }
          
          germSheets.config.enableLogging && console.log("starting new worker")

@@ -1,6 +1,6 @@
 /** 
  *  @file main parsing routine
- *  @version 1.0.1
+ *  @version 1.0.2
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
  *  @author <max@pixelf3hler.de>
  *  @license license.txt
@@ -96,7 +96,6 @@ germSheets.Parser = function(gss) {
       vars: [],
       mixins: [],
       skeletons: [],
-      methods: [],
       expressions: [],
       cssClass: [],
       cssElement: [],
@@ -116,8 +115,6 @@ germSheets.Parser = function(gss) {
    this.passes = ["Comments", "GSS", "Declarations"] //"Methods"]
    this.mode = 0
    this.modes = { open: 0, comment: 1, commentline: 10, commentblock: 11, expression: 12, variable: 2, mixin: 3, skeleton: 4, cssclass: 5, cssid: 6, cssel: 7, method: 8, thru: 9 }
-   
-   
    
    return this
 }
@@ -153,7 +150,7 @@ germSheets.Parser.prototype.parseComments = function() {
    while(false !== (tkn = this.tknzr.nextToken())) {
       ntkn = (this.tknzr.index < this.tknzr.tokens.length) ? this.tknzr.tokens[this.tknzr.index] : token.NUL
       
-      if(token.COML === tkn && token.COML2 === ntkn) {
+      if(token.FWD_SLASH === tkn && token.FWD_SLASH === ntkn) {
          if(this.modes.commentline !== this.mode) {
             this.mode = this.modes.commentline
             germSheets.config.enableLogging && console.log("switch mode to: commentline")
@@ -161,7 +158,7 @@ germSheets.Parser.prototype.parseComments = function() {
          
       }
       
-      if(token.COMB === tkn && token.COMB2 === ntkn) {
+      if(token.FWD_SLASH === tkn && token.ASTERISK === ntkn) {
          if(this.modes.commentblock !== this.mode) {
             this.mode = this.modes.commentblock
             germSheets.config.enableLogging && console.log("switch mode to: commentblock")
@@ -180,14 +177,14 @@ germSheets.Parser.prototype.parseComments = function() {
       
       if(this.mode === this.modes.commentblock) {
          
-         if(endCommentBlock && token.COMB === tkn) { 
+         if(endCommentBlock && token.FWD_SLASH === tkn) { 
             endCommentBlock = false
             this.mode = 0
             germSheets.config.enableLogging && console.log("switch mode to open")
             
          }
          
-         if(token.COMB2 === tkn && token.COMB === ntkn) { 
+         if(token.ASTERISK === tkn && token.FWD_SLASH === ntkn) { 
             endCommentBlock = true
          }
          
@@ -208,10 +205,11 @@ germSheets.Parser.prototype.parseComments = function() {
    2nd pass
 */
 germSheets.Parser.prototype.parseGSS = function() {
-   var tkn, ntkn, varIdx = 0, mixIdx = 0, skelIdx = 0,
+   var ltkn, tkn, ntkn, varIdx = 0, mixIdx = 0, skelIdx = 0,
        cssClsIdx = 0, cssIdIdx = 0, cssElIdx = 0, inlineThruMode = false
    germSheets.config.enableLogging && console.log("start parsing gss")
    while(false !== (tkn = this.tknzr.nextToken())) {
+      ltkn = ntkn || tkn
       ntkn = (this.tknzr.index < this.tknzr.tokens.length) ? this.tknzr.tokens[this.tknzr.index] : token.NUL
       
       // toggle inlineThruMode
@@ -219,7 +217,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          inlineThruMode = !inlineThruMode
       }
       
-      if(token.CSSCLASS === tkn) {
+      if(token.DOT === tkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.cssclass
             germSheets.config.enableLogging && console.log("switch mode to: cssclass")
@@ -227,7 +225,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          }
       }
       
-      if(token.CSSID === tkn) {
+      if(token.HASH === tkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.cssid
             germSheets.config.enableLogging && console.log("switch mode to: cssid")
@@ -244,7 +242,7 @@ germSheets.Parser.prototype.parseGSS = function() {
       }
       
       /* extract method calls in a separate pass
-      if(token.METH === tkn && token.METH2 === ntkn) {
+      if(token.LT === tkn && token.MINUS === ntkn) {
          if(this.mode !== this.modes.method) {
             this.mode = this.modes.method
          }
@@ -258,7 +256,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          }
       }
       
-      if(token.MIX === tkn) {
+      if(token.TILDE === tkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.mixin
             germSheets.config.enableLogging && console.log("switch mode to: mixin")
@@ -266,7 +264,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          }
       }
       
-      if(token.SKEL === tkn) {
+      if(token.PLUS === tkn && token.LT !== ltkn) {
          if(this.mode === this.modes.open) {
             this.mode = this.modes.skeleton
             germSheets.config.enableLogging && console.log("switch mode to: skeleton")
@@ -279,7 +277,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          this.store.cssClass[cssClsIdx].push(tkn)
          
          if(!inlineThruMode) {
-            if(token.END_CSS === tkn && token.BANG !== ntkn) {
+            if(token.CURLY_CLOSE === tkn && token.BANG !== ntkn) {
                this.mode = 0
                cssClsIdx += 1
                germSheets.config.enableLogging && console.log("switch mode to: open")
@@ -293,7 +291,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          this.store.cssId[cssIdIdx].push(tkn)
          
          if(!inlineThruMode) {
-            if(token.END_CSS === tkn && token.BANG !== ntkn) {
+            if(token.CURLY_CLOSE === tkn && token.BANG !== ntkn) {
                this.mode = 0
                germSheets.config.enableLogging && console.log("finished parsing: %s", this.store.cssId[cssIdIdx].join(""))
                cssIdIdx += 1
@@ -308,7 +306,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          this.store.cssElement[cssElIdx].push(tkn)
          
          if(!inlineThruMode) {
-            if(token.END_CSS === tkn && token.BANG !== ntkn) {
+            if(token.CURLY_CLOSE === tkn && token.BANG !== ntkn) {
                this.mode = 0
                cssElIdx += 1
                germSheets.config.enableLogging && console.log("switch mode to: open")
@@ -322,7 +320,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          this.store.vars[varIdx].push(tkn)
          
          if(!inlineThruMode) {
-            if(token.END_VAR === tkn) {
+            if(token.SEMICOLON === tkn) {
                this.mode = 0
                varIdx += 1
                germSheets.config.enableLogging && console.log("switch mode to: open")
@@ -338,7 +336,7 @@ germSheets.Parser.prototype.parseGSS = function() {
       
          this.store.mixins[mixIdx].push(tkn)
          
-         if(token.END_MIX_DECL === tkn) {
+         if(token.CURLY_CLOSE === tkn) {
             this.mode = 0
             mixIdx += 1
             germSheets.config.enableLogging && console.log("switch mode to: open")
@@ -354,7 +352,7 @@ germSheets.Parser.prototype.parseGSS = function() {
          this.store.skeletons[skelIdx].push(tkn)
          
          if(!inlineThruMode) {
-            if(token.END_SKEL === tkn) {
+            if(token.SEMICOLON === tkn) {
                this.mode = 0
                skelIdx += 1
                germSheets.config.enableLogging && console.log("switch mode to: open")
@@ -424,7 +422,7 @@ germSheets.Parser.prototype.parseDeclarations = function() {
    for(; i < n; i++) {
       var rlData = this._parseDeclarations(cssrules[i], i)
       this.store.cssRules[i] = rlData
-      germSheets.config.enableLogging && console.log("rlData@parseDeclarations: %o", rlData)
+      //germSheets.config.enableLogging && console.log("rlData@parseDeclarations: %o", rlData)
       if(rlData.childRules && rlData.childRules.length) {
          //childRules[i] = rlData.childRules
          childRules[i] = []
@@ -433,7 +431,7 @@ germSheets.Parser.prototype.parseDeclarations = function() {
    }
    
    if(childRules && childRules.length) {
-      germSheets.config.enableLogging && console.log("childRules: %o", childRules)
+      //germSheets.config.enableLogging && console.log("childRules: %o", childRules)
       n = childRules.length
       var k, j, parentRule
       
@@ -505,7 +503,7 @@ germSheets.Parser.prototype._parseDeclarations = function(tokens, ruleIdx) {
          }
       }
       
-      if(token.CSSCLASS === tkn || token.CSSID === tkn || token.INLINE_THRU === tkn) {
+      if(token.DOT === tkn || token.HASH === tkn || token.INLINE_THRU === tkn) {
          if("css" === mode) {
             mode = "nested"
             ruleData.childRules[crIdx] = ""
@@ -526,7 +524,7 @@ germSheets.Parser.prototype._parseDeclarations = function(tokens, ruleIdx) {
          }
       }
       
-     if("id" === mode) { 
+      if("id" === mode) { 
          if(token.CURLY_OPEN === ntkn) {
             mode = "open"
             germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
@@ -539,7 +537,7 @@ germSheets.Parser.prototype._parseDeclarations = function(tokens, ruleIdx) {
          
          qntm += tkn
          
-         if(token.END_VAR === tkn) {
+         if(token.SEMICOLON === tkn) {
             ruleData.cssText += qntm.slice()
             qntm = ""
             mode = "css"
@@ -616,7 +614,7 @@ germSheets.Parser.prototype.unstore = function() {
       thru: this.store.thru.slice(),
       vars: this.store.vars.slice(),
       mixins: this.store.mixins.slice(),
-      methods: this.store.methods.slice(),
+      //methods: this.store.methods.slice(),
       skeletons: this.store.skeletons.slice(),
       expressions: this.store.expressions.slice(),
       cssRuleData: this.store.cssRules.slice()

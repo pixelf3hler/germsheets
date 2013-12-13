@@ -1,6 +1,6 @@
 /** 
  *  @file germSheets core objects
- *  @version 1.0.0
+ *  @version 1.0.2
  *  @copyright © 2013 max ɐʇ pixelf3hler · de
  *  @author <max@pixelf3hler.de>
  *  @license license.txt
@@ -131,19 +131,21 @@
          if("val" === mode) {
             this.cssText += tkn
             // add support for storing methods / expressions
-            if(token.METH === tkn) {
-               if(token.METH2 === ntkn) {
+            if(token.LT === tkn) {
+               if(token.MINUS === ntkn) {
                   this.isMethod = true
                   //germSheets.config.enableLogging && console.log("Variable::this.isMethod", this.isMethod)
                }else if(token.PAR_OPEN === ntkn) {
                   this.isExpression = true
                   //germSheets.config.enableLogging && console.log("Variable::this.isExpression", this.isExpression)
+               }else if(token.PLUS === ntkn) {
+                  throw new TypeError("Ribs can't be assigned to variables")
                }
             }
              
-            if(token.VAR_END === tkn) {
+            /*if(token.SEMICOLON === tkn) {
                this.dirty = false
-            }
+            }*/
          }
       }
       
@@ -184,7 +186,7 @@
    germSheets.Variable.prototype.process = function(input) {
       var regex = new RegExp(regEsc(this.getFullIdentifier()) + ';*', 'g')
       // remove semicolon if inside an expression
-      if(this.inExpression && token.END_VAR === this.cssText.charAt(this.cssText.length-1)) {
+      if(this.inExpression && token.SEMICOLON === this.cssText.charAt(this.cssText.length-1)) {
          //this.cssText = this.cssText.substring(0, this.cssText.length-1)
          this.output = input.replace(regex, this.cssText.substring(0, this.cssText.length-1))
       }else {
@@ -202,14 +204,14 @@
       this.argumentValues = ""
       this.rawCssText = ""
       
-      return this.build() //gssPrototype.__constructor.call(this, args, node)
+      return this.build()
    }
    
    germSheets.Mixin.prototype.build = function() {
       var tkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText.replace(/\u21B5/g, ''))
       while(false !== (tkn = tknzr.nextToken())) {
          ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
-         if(token.MIX === tkn) {
+         if(token.TILDE === tkn) {
             if("open" === mode) {
                this.token = tkn
                mode = "id"
@@ -298,7 +300,7 @@
       while(false !== (tkn = tknzr.nextToken())) {
          ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
          
-         if(token.METH === tkn && token.METH2 === ntkn) {
+         if(token.LT === tkn && token.MINUS === ntkn) {
             if("open" === mode) {
                mode = "token"
                //germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
@@ -313,7 +315,7 @@
             }
          }
          
-         if(token.END_VAR === tkn || token.NUL === ntkn) {
+         if(token.SEMICOLON === tkn || token.NUL === ntkn) {
             if("open" === mode) {
                //this.dirty = false
                break
@@ -322,7 +324,7 @@
          
          if("token" === mode) {
             
-            if(token.METH2 === tkn) {
+            if(token.MINUS === tkn) {
                mode = "id"
                //germSheets.config.enableLogging && console.log("switch mode to: " + mode + " at token: " + tkn)
             }
@@ -424,7 +426,7 @@
       while(false !== (tkn = tknzr.nextToken())) {
          ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
          
-         if(token.SKEL === tkn) {
+         if(token.PLUS === tkn) {
             if("open" === mode) {
                mode = "id"
                this.token = tkn
@@ -439,7 +441,7 @@
             }
          }
          
-         if(token.END_VAR === tkn || token.NUL === ntkn) {
+         if(token.SEMICOLON === tkn || token.NUL === ntkn) {
             if("open" === mode) {
                this.dirty = false
                break
@@ -509,6 +511,110 @@
       })
    }
    
+   
+   
+   /* Ribs
+   -----------------*/
+   germSheets.Rib = function(args, node) {
+      germSheets.Element.call(this, args || [], node || null)
+      
+      this.rawArguments = ""
+      this.argumentValues = []
+      
+      this.build()
+   }
+   
+   germSheets.Rib.prototype.build = function() {
+      var tkn, ntkn, mode = "open", tknzr = new germSheets.SimpleTokenizer(this.gssText)
+      // <+ribId(ribarg1,ribarg2 ...);
+      while(false !== (tkn = tknzr.nextToken())) {
+         ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
+         
+         if(token.LT === tkn && token.PLUS === ntkn) {
+            if("open" === mode) {
+               mode = "token"
+            }
+         }
+         
+         if(token.PAR_OPEN === tkn) {
+            if("open" === mode) {
+               mode = "args"
+               // skip parenthesis
+               continue
+            }
+         }
+         
+         if("token" === mode) {
+            this.token += tkn
+            if(token.PLUS === tkn) {
+               mode = "id"
+            }
+            continue
+         }
+         
+         if("id" === mode) {
+            this.identifier += tkn
+            if(token.PAR_OPEN === ntkn) {
+               mode = "open"
+            }
+            continue
+         }
+         
+         if("args" === mode) {
+            this.rawArguments += tkn
+            if(token.PAR_OPEN === tkn && token.SEMICOLON === ntkn) {
+               mode = "open"
+               // remove last parenthesis
+               this.rawArguments = this.rawArguments.substring(0, this.rawArguments.length-1)
+               // done
+               break
+            }
+         }
+      }
+      // fetch function code immediately to facilitate synchronization when building css declarations
+      germSheets.getFunction("rib_" + this.identifier)
+   }
+   
+   germSheets.Rib.prototype.getFullIdentifier = function() {
+      return this.token + this.identifier
+   }
+   
+   germSheets.Rib.prototype._process = function(processor) {
+      var // get arguments
+      tmp = this.rawArguments.split(/\u0020*,\u0020*/),
+      requiredVars = [], varInputs = [], varIdx = 0, i = 0, n = tmp.length
+      
+      for(; i < n; i++) {
+         if(token.VAR === tmp[i].charAt(0)) {
+            varInputs[varIdx] = tmp[i]
+            requiredVars[varIdx++] = this.parentNode.getVariable(tmp[i])  
+         }else {
+            this.argumentValues.push(tmp[i])
+         }
+      }
+      
+      i = 0
+      n = requiredVars.length
+      for(; i < n; i++) {
+         this.argumentValues.push(requiredVars[i].process(varInputs[i]))
+      }
+      
+      this.output = processor.apply(this, this.argumentValues)
+      
+      return this.output
+   }
+   
+   germSheets.Rib.prototype.process = function(callback) {
+      var siht = this
+      germSheets.getFunction("rib_" + this.identifier, function(fn) {
+         var r = siht._process(fn)
+         callback(r)
+      })
+   }
+   
+   
+   
+   
    /* Inline Expressions
    ----------------------*/
    germSheets.Expression = function(args, node) {
@@ -534,7 +640,7 @@
       while(false !== (tkn = tknzr.nextToken())) {
          ntkn = (tknzr.tokens.length > tknzr.index) ? tknzr.tokens[tknzr.index] : token.NUL
          
-         if(token.METH === tkn && token.PAR_OPEN === ntkn) { 
+         if(token.LT === tkn && token.PAR_OPEN === ntkn) { 
             if("open" === mode) {
                mode = "token"
             }
@@ -559,7 +665,7 @@
          if("exp" === mode) {
             this.rawExpression += tkn
             
-            if(token.END_VAR === tkn) {
+            if(token.SEMICOLON === tkn) {
                this.dirty = false
                mode = "open"
                break
@@ -583,7 +689,7 @@
          while(false !== (tkn = tknzr.nextToken())) {
             ntkn = tknzr.index < tknzr.tokens.length ? tknzr.tokens[tknzr.index] : token.NUL
             
-            if(token.CSSCLASS === tkn || token.CSSID === tkn || token.CSSEL.test(tkn)) {
+            if(token.DOT === tkn || token.HASH === tkn || token.CSSEL.test(tkn)) {
                if("open" === mode) {
                   mode = "cssref"
                   this.cssReferences[refIdx] = tkn
@@ -609,7 +715,7 @@
             }
             
             if("gssref" === mode) {
-               if(token.OP.test(tkn) || token.END_VAR === tkn) {
+               if(token.OP.test(tkn) || token.SEMICOLON === tkn) {
                   mode = "open"
                   varIdx++
                }else {
@@ -673,7 +779,7 @@
             this.evaledExpression = this.cleanExpression
          }
       }
-      this.cssText = this.evaledExpression + this.cssUnit + token.END_VAR
+      this.cssText = this.evaledExpression + this.cssUnit + token.SEMICOLON
       this.output = input ? input.replace(this.gssText, this.cssText) : this.cssText
       
       return this.output
@@ -727,12 +833,14 @@
       this.methodRefs = []
       this.mixinRefs = []
       this.expressionRefs = []
+      this.ribRefs = []
       this.property = ""
       this.gssValue = ""
       this.vars = []
       this.methods = []
       this.mixins = []
       this.expressions = []
+      this.ribs = []
       this.output = ""
          
       return this.build()
@@ -742,13 +850,29 @@
          referencing a css property..so we have to take that into account.. 
          in that case gssText should be equal to gssValue and property should be either
          the mixin token or the mixin name? the token is probably better..*/
-      if(token.MIX === this.gssText.charAt(0)) {
+      if(token.TILDE === this.gssText.charAt(0)) {
          this.mixins.push(this.gssText)
-         this.property = token.MIX.slice()
+         this.property = token.TILDE.slice()
          this.gssValue = this.gssText
          // i think we're done here..since a declarationObject contains only one declaration
          // and mixin calls can't be nested..just fetch the actual mixin object and return this
          this.mixinRefs = this.rootNode.getObjects("Mixins", this.mixins)
+         return this
+      }
+      
+      /* a declaration could only contain a rib which can't be assigned to a property.
+         thats a similar situation as with mixins except that ribs still need to be built 
+         ..that means we can't simply get them from this.rootNode ..but using newObject should work 
+         somehow the < disappears ..but since skeletons are already removed before cssrules are parsed we can assume a rib when encountering a + 
+         but i should fix that */
+      
+      if((token.LT === this.gssText.charAt(0) && token.PLUS === this.gssText.charAt(1)) || token.PLUS === this.gssText.charAt(0)) {
+         this.gssText = (token.LT !== this.gssText.charAt(0)) ? "<" + this.gssText : this.gssText
+         this.ribs.push(this.gssText)
+         this.property = token.LT.slice().concat(token.PLUS.slice())
+         this.gssValue = this.gssText
+         
+         this.ribRefs.push(this.rootNode.newObject("Rib", this.gssText))
          return this
       }
       
@@ -787,20 +911,18 @@
             }
          }
          
-         if(token.MIX === tkn) {
+         if(token.TILDE === tkn) {
             if("open" === mode) {
-               
-               germSheets.config.enableLogging && console.log("Syntax Error", "germSheets.Mixin can't be assigned to CSS properties")
-               
+               throw new TypeError("germSheets.Mixin can't be assigned to a CSS property")
             }else {
-               germSheets.config.enableLogging && console.log("Syntax Error", "germSheets.Mixin doesn't support nesting yet")
+               throw new Error("SyntaxError: germSheets.Mixin doesn't support nesting")
             }
             mode = "exclude"
             continue
          }
          
-         if(token.METH === tkn) {
-            if(token.METH2 === ntkn) {
+         if(token.LT === tkn) {
+            if(token.MINUS === ntkn) {
                if("open" === mode) {
                   mode = "meth"
                   
@@ -837,7 +959,7 @@
          }
          
          if("exclude" === mode) {
-            if(token.END_VAR === tkn) {
+            if(token.SEMICOLON === tkn) {
                mode = "open"
                continue
             }
@@ -853,7 +975,7 @@
             
             this.vars[refIdx] += tkn
             
-            if(token.END_VAR === tkn) {
+            if(token.SEMICOLON === tkn) {
                mode = "open"
                idxReset = true
                continue
@@ -868,7 +990,7 @@
          
          if("meth" === mode) {
             this.methods[refIdx] += tkn
-            if(token.END_VAR === tkn) {
+            if(token.SEMICOLON === tkn) {
                mode = "open"
                idxReset = true
             }
@@ -879,13 +1001,13 @@
             this.expressions[refIdx] += tkn
             
             // check nested end sequence ));
-            if(token.PAR_CLOSE === tkn && token.PAR_CLOSE === ltkn && token.END_VAR === ntkn) {
+            if(token.PAR_CLOSE === tkn && token.PAR_CLOSE === ltkn && token.SEMICOLON === ntkn) {
                mode = "open"
                idxReset = true
                continue
             }
             
-            if(token.END_VAR === tkn) {
+            if(token.SEMICOLON === tkn) {
                mode = "open"
                idxReset = true
             }
@@ -895,7 +1017,7 @@
          
          if("css" === mode) {
             this.cssText += tkn
-            if(token.END_VAR === tkn) {
+            if(token.SEMICOLON === tkn) {
                mode = "open"
                idxReset = true
             }
@@ -941,8 +1063,6 @@
       meth, mIdx = 0
       r = this.gssValue, 
       siht = this
-      
-      //this.completeCallback = callback
       
       germSheets.config.enableLogging && console.log("starting to process", this)
       
@@ -994,6 +1114,7 @@
       // we're here because we've just finished fetching
       // method outputs asynchronously..that leaves us with mixins
       // and expressions that hold references..
+      // ..ribs also need to be processed asynchronously..so i guess its best to do that at the end
       var r = input
       
       if(this.mixinRefs && this.mixinRefs.length) {
@@ -1010,11 +1131,26 @@
          })
       }
       
-      this.output = (token.MIX === this.property) ? r + token.SPACE : this.property + ": " + r + token.SPACE
-      
-      germSheets.config.enableLogging && console.log("final output of %o " + this.output, this)
-      
-      callback(this.output)
+      if(this.ribRefs && this.ribRefs.length) {
+         var siht = this, ribIdx = 0, rib = this.ribRefs[0],
+         ribProcessor = function(processed) {
+            r = processed
+            rib = (siht.ribRefs.length > ribIdx + 1) ? siht.ribRefs[++ribIdx] : false
+            if(!rib) {
+               siht.output = r
+               callback(siht.output)
+            }else {
+               rib.process(ribProcessor)
+            }
+         }
+         rib.process(ribProcessor)
+      }else {
+         this.output = (token.TILDE === this.property) ? r + token.SPACE : this.property + ": " + r + token.SPACE
+         
+         germSheets.config.enableLogging && console.log("final output of %o " + this.output, this)
+         
+         callback(this.output)
+      }
    }
  
 /* css rules 
@@ -1156,6 +1292,8 @@
       this.sourceCode = gssSourceCode
       
       this.compiledDOMNode = null
+      
+      this.id = "gssnode_" + Date.now()
       
       this.output = ""
       this.processed = {
@@ -1316,21 +1454,24 @@
          this._builtCSSRules = undefined
       }
       
-      // output
-      
-      var
-      outputNode = document.createElement("style")
+      var // output
+      d = window.document,
+      outputNode = d.createElement("style")
       outputNode.type = "text/css"
       outputNode.title = "germsheets_0.0.2"
-      outputNode.appendChild(document.createTextNode(output))
-      document.getElementsByTagName("head")[0].appendChild(outputNode)
+      outputNode.appendChild(d.createTextNode(output))
+      d.getElementsByTagName("head")[0].appendChild(outputNode)
       
       this.compiledDOMNode = outputNode
       
-      germSheets.config.enableLogging && console.log("*** finished compiling ***")
-      germSheets.config.enableLogging && console.log("germSheets completed in " + germSheets.stats.stopTimer())
+      if("never" !== germSheets.config.cachePolicy) {
+         // cache output
+         var tmp = germSheets.cache(germSheets.clientId)
+         germSheets.cache(germSheets.clientId, (tmp ? tmp + this.id + ',' : this.id + ','))
+         germSheets.cache(this.id, output)
+      }
       
-      this.completeCallback(output + "\n/*<!--** code processed in " + germSheets.stats.executionTime + " **-->*/\n")
+      this.completeCallback(output + "\n/*<!--** code processed in " + germSheets.stats.stopTimer() + " **-->*/\n")
    }
    
    germSheets.GermNode.prototype.process = function() {
@@ -1580,7 +1721,7 @@
                return "-" + m.toLowerCase()
             })
             cssv = obj[p]
-            r += cssp + ": " + cssv + token.END_VAR + delimiter
+            r += cssp + ": " + cssv + token.SEMICOLON + delimiter
          }
          germSheets.config.enableLogging && console.log("germSheets::expandObject", r)
       }/*else {
@@ -1615,8 +1756,7 @@
     * @returns {germSheets.CSSRule}
     */
    germSheets.addNewCSSRule = function(selector, declarations) {
-      // concat everything into string
-      var 
+      var // concat everything into string
       ruleCSSText = germSheets.expandObject(declarations),
       germNode = germSheets.nodes[germSheets.nodes.length - 1],
       decArray = ruleCSSText.split(","),
@@ -1647,7 +1787,9 @@
       parser = new germSheets.Parser(gssCode.replace(/^\s*(?:<style[^>]*>|[\r\n\s<\-!\[CDAT\?gss])*|(?:[\r\n\s\?>\-\]]|<\/style>)*$/mg, ""))
       
       germSheets.config.enableLogging && console.log("** start parser **")
+      
       parser.parse()
+      
       germSheets.config.enableLogging && console.log("*** parser completed ***")
       
       compiler = new germSheets.Compiler(parser.unstore(), gssCode)
@@ -1658,8 +1800,6 @@
       
       germSheets.config.enableLogging && console.log("** start compiling **")
       compiler.compile(function(compiledCss) {
-         germSheets.config.enableLogging && console.log("callback@germSheets::run")
-         
          germSheets.config.enableLogging && console.log("compiler output: ", compiledCss)
          
          if('__gssdebug' in window) window.__gssdebug(compiledCss)
@@ -1689,9 +1829,33 @@
          germSheets.config.enableLogging && console.log(germSheets.config)
       }
       
-      germSheets.stats.startTimer()
+      if(germSheets.getClientId()) {
+         if(germSheets.Cache.hasInStore(germSheets.clientId)) {
+            // the cache entry should be a comma seperated list of keys
+            var keys = germSheets.cache(germSheets.clientId).split(",")
+            if(keys && keys.length) {
+               var d = window.document
+               keys.forEach(function(k) {
+                  var // create style nodes from cache
+                  cachedCss = germSheets.cache(k)
+                  if(cachedCss) {
+                     cssNode = d.createElement("style")
+                     cssNode.setAttribute("title", k)
+                     cssNode.appendChild(d.createTextNode(cachedCss))
+                     d.getElementsByTagName("head")[0].appendChild(cssNode)
+                  }                  
+               })
+               return
+            }
+         }
+      }else {
+         germSheets.clientId = germSheets.createUid()
+         germSheets.Cache.setCookie("gssClientId", germSheets.clientId)
+      }
       
       src = src ? [src] : document.querySelectorAll('style[type="text/x-gss"]')
+      
+      germSheets.stats.startTimer()
       
       foreach(src, function(node) {
          if("[object String]" === Object.prototype.toString.call(node)) {

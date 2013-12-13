@@ -1,3 +1,11 @@
+/** 
+ *  @file indexedDB wrapper
+ *  @version 1.0.2
+ *  @copyright © 2013 max ɐʇ pixelf3hler · de
+ *  @author <max@pixelf3hler.de>
+ *  @license license.txt
+ *  The MIT License
+ */
 (function(window, undefined) {
    
    var germSheets = window.germSheets || {}
@@ -23,7 +31,7 @@
       } // store IDBRequests?
       this.version = 1
       // skip the returns since we're mostly working with asynchronous apis that require callbacks
-      return this.build()
+      this.build()
    }
    germSheets.Database.prototype.build = function() {
       var siht = this
@@ -31,7 +39,7 @@
       this.requests.open.onerror = function(e) { return _onopenerror.call(siht, e) }
       this.requests.open.onsuccess = function(e) { return _onopen.call(siht, e) }
       this.requests.open.onupgradeneeded = function(e) { return _onupgradeneeded.call(siht, e) }
-      return this
+      
    }
    germSheets.Database.prototype.transaction = function(objectStores, accessType) {
       return this.database ? this.database.transaction(objectStores, accessType || "readonly") : null

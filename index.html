@@ -13,7 +13,7 @@
       
       ~roundCorners($radius) {
          /* $radius is replaced by the argument value
-            no need for double-trailing inside mixins
+            also testing comment blocks
           */
          border-radius: $radius;
       }
@@ -28,7 +28,6 @@
       +unroll(test,class,2,6,$iteratorBlock);
       
       #green_border {
-         /* remember to double trail variables inside style rules */
          border: solid 1px $green;
          font-size: 12px;
          width: 220px;
@@ -77,8 +76,10 @@
 -->
    <p id="debug_out"></p>
    <script src="lib/qd.0.0.1.js"></script>
-   <script src="core/germsheets.object.prototype.js"></script>
+   <!--script src="core/germsheets.object.prototype.js"></script-->
+   <script src="core/germsheets.polyfill.js"></script>
    <script src="core/germsheets.namespace.js"></script>
+   <script src="core/germsheets.cache.js"></script>
    <script src="core/germsheets.http.js"></script>
    <script src="core/germsheets.parser.js"></script>
    <script src="core/germsheets.compiler.js"></script>

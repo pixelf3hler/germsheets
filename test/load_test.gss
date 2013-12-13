@@ -47,6 +47,10 @@
       width: <(100 / $inExpressionTest)px;
    }
    
+   .rib-test {
+      <+bg(#f,none,c c,n);
+   }
+   
    /*.wrapped-expression {
       as expected..the next line breaks everything..i guess i'll have to handle css functions differently
       color: rgb(<([Math.round(Math.random()*255),Math.round(Math.random()*255),Math.round(Math.random()*255)].join(',')));
